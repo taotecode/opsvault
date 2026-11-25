@@ -1,0 +1,28 @@
+{
+  "name": "boerfen-assets",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @boerfen/server start",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @boerfen/web test:e2e",
+    "migrate": "pnpm --filter @boerfen/server migrate",
+    "cli": "pnpm --filter @boerfen/server cli"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.74.0"
+  }
+}
