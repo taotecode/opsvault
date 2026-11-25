@@ -76,6 +76,8 @@ export async function createCredential(
   input: CredentialCreateInput,
   actor: Actor,
 ): Promise<CredentialDto> {
+  const hostIds = [...new Set(input.hostIds ?? [])];
+  await assertHostsExist(db, hostIds);
   const masterKey = getMasterKey(config);
   let fingerprint: string | null = null;
   if (input.type === 'ssh_key') {
@@ -88,41 +90,41 @@ export async function createCredential(
   const envelope = encryptSecret(input.value, masterKey);
   const now = new Date().toISOString();
   const id = ulid();
-  await db
-    .insertInto('credentials')
-    .values({
-      id,
-      name: input.name,
-      type: input.type,
-      encrypted_dek: envelope.encryptedDek,
-      encrypted_value: envelope.encryptedValue,
-      dek_iv: envelope.dekIv,
-      dek_tag: envelope.dekTag,
-      value_iv: envelope.valueIv,
-      value_tag: envelope.valueTag,
-      fingerprint,
-      strength: input.type === 'password' ? passwordStrength(input.value) : null,
-      owner_id: actor.id ?? 'system',
-      updated_by: actor.label,
-      created_at: now,
-      updated_at: now,
-    })
-    .execute();
-  for (const hostId of input.hostIds ?? []) {
-    await db
-      .insertInto('host_credentials')
-      .values({ host_id: hostId, credential_id: id, role: 'linked' })
-      .onConflict((oc) => oc.doNothing())
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .insertInto('credentials')
+      .values({
+        id,
+        name: input.name,
+        type: input.type,
+        encrypted_dek: envelope.encryptedDek,
+        encrypted_value: envelope.encryptedValue,
+        dek_iv: envelope.dekIv,
+        dek_tag: envelope.dekTag,
+        value_iv: envelope.valueIv,
+        value_tag: envelope.valueTag,
+        fingerprint,
+        strength: input.type === 'password' ? passwordStrength(input.value) : null,
+        owner_id: actor.id ?? 'system',
+        updated_by: actor.label,
+        created_at: now,
+        updated_at: now,
+      })
       .execute();
-    const host = await db
-      .selectFrom('hosts')
-      .select(['id', 'credential_id'])
-      .where('id', '=', hostId)
-      .executeTakeFirst();
-    if (host && !host.credential_id) {
-      await db.updateTable('hosts').set({ credential_id: id }).where('id', '=', hostId).execute();
+    for (const hostId of hostIds) {
+      await trx
+        .insertInto('host_credentials')
+        .values({ host_id: hostId, credential_id: id, role: 'linked' })
+        .onConflict((oc) => oc.doNothing())
+        .execute();
+      await trx
+        .updateTable('hosts')
+        .set({ credential_id: id })
+        .where('id', '=', hostId)
+        .where('credential_id', 'is', null)
+        .execute();
     }
-  }
+  });
   await writeAudit(db, {
     actorId: actor.id,
     actorLabel: actor.label,
@@ -130,7 +132,7 @@ export async function createCredential(
     action: '创建凭据',
     category: 'cred',
     targetId: id,
-    detail: { name: input.name, type: input.type, hostCount: (input.hostIds ?? []).length },
+    detail: { name: input.name, type: input.type, hostCount: hostIds.length },
     ip: actor.ip,
     ua: actor.ua,
   });
@@ -138,6 +140,19 @@ export async function createCredential(
     (await db.selectFrom('credentials').selectAll().where('id', '=', id).executeTakeFirst())!,
     await hostNamesForCredential(db, id),
   );
+}
+
+async function assertHostsExist(
+  db: Kysely<DatabaseSchema>,
+  hostIds: string[],
+): Promise<void> {
+  if (!hostIds.length) return;
+  const rows = await db
+    .selectFrom('hosts')
+    .select('id')
+    .where('id', 'in', hostIds)
+    .execute();
+  if (rows.length !== hostIds.length) throw errors.notFound('主机');
 }
 
 export async function updateCredential(
@@ -172,17 +187,35 @@ export async function updateCredential(
     }
     updates.fingerprint = fingerprint;
   }
-  await db.updateTable('credentials').set(updates as never).where('id', '=', id).execute();
-  if (input.hostIds) {
-    await db.deleteFrom('host_credentials').where('credential_id', '=', id).execute();
-    for (const hostId of input.hostIds) {
-      await db
-        .insertInto('host_credentials')
-        .values({ host_id: hostId, credential_id: id, role: 'linked' })
-        .onConflict((oc) => oc.doNothing())
-        .execute();
+  const hostIds = input.hostIds ? [...new Set(input.hostIds)] : undefined;
+  if (hostIds) await assertHostsExist(db, hostIds);
+  await db.transaction().execute(async (trx) => {
+    await trx.updateTable('credentials').set(updates as never).where('id', '=', id).execute();
+    if (hostIds) {
+      await trx.deleteFrom('host_credentials').where('credential_id', '=', id).execute();
+      for (const hostId of hostIds) {
+        await trx
+          .insertInto('host_credentials')
+          .values({ host_id: hostId, credential_id: id, role: 'linked' })
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+      }
+      let clear = trx
+        .updateTable('hosts')
+        .set({ credential_id: null })
+        .where('credential_id', '=', id);
+      if (hostIds.length) clear = clear.where('id', 'not in', hostIds);
+      await clear.execute();
+      if (hostIds.length) {
+        await trx
+          .updateTable('hosts')
+          .set({ credential_id: id })
+          .where('id', 'in', hostIds)
+          .where('credential_id', 'is', null)
+          .execute();
+      }
     }
-  }
+  });
   await writeAudit(db, {
     actorId: actor.id,
     actorLabel: actor.label,

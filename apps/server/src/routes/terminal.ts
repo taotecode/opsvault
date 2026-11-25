@@ -9,6 +9,11 @@ import { errors } from '../lib/errors.js';
 export async function terminalRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/hosts/:id/terminal', { websocket: true }, async (socket, req) => {
     try {
+      const origin = req.headers.origin;
+      if (origin) {
+        const expected = new URL(app.config.baseUrl).origin;
+        if (origin !== expected) throw errors.forbidden('WebSocket Origin 不匹配');
+      }
       const auth = getAuth(req);
       denyAgent(req);
       requireRole(req, ['admin', 'operator']);

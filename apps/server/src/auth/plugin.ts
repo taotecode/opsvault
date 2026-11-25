@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { sha256Hex, verifyPassword } from '../lib/crypto.js';
+import { sha256Hex } from '../lib/crypto.js';
 import { errors } from '../lib/errors.js';
 import type { RequestAuth } from '../lib/permissions.js';
+import { writeAudit } from '../lib/audit.js';
 import type { Scope } from '@boerfen/shared';
 
 /**
@@ -39,7 +40,7 @@ export async function authPlugin(app: FastifyInstance): Promise<void> {
       if (!row) throw errors.unauthorized('令牌不存在或已吊销');
       if (row.expires_at && new Date(row.expires_at) < new Date()) throw errors.unauthorized('令牌已过期');
       if (row.status !== 'active') throw errors.unauthorized('账号已被禁用');
-      let scopes: Scope[] = [];
+      let scopes: Scope[];
       try {
         scopes = JSON.parse(row.scopes_json) as Scope[];
       } catch {
@@ -118,9 +119,27 @@ export async function authPlugin(app: FastifyInstance): Promise<void> {
       }
     }
   });
-}
-
-export async function verifyPasswordForReveal(password: string, hash: string): Promise<void> {
-  const ok = await verifyPassword(hash, password);
-  if (!ok) throw errors.forbidden('二次验证失败：密码不正确');
+  app.addHook('onResponse', async (req, reply) => {
+    const auth = req.auth;
+    if (auth?.via !== 'token' || auth.tokenKind !== 'agent') return;
+    try {
+      await writeAudit(app.db, {
+        actorId: auth.user.id,
+        actorLabel: auth.actorLabel,
+        actorKind: 'agent',
+        action: 'Agent 调用',
+        category: 'api',
+        detail: {
+          method: req.method,
+          path: (req.raw.url ?? '').split('?')[0],
+          status: reply.statusCode,
+        },
+        ip: req.ip ?? null,
+        ua: (req.headers['user-agent'] as string | undefined) ?? null,
+        success: reply.statusCode < 400,
+      });
+    } catch {
+      req.log.warn({ url: req.raw.url }, 'agent audit write failed');
+    }
+  });
 }

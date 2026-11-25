@@ -96,6 +96,22 @@ export function hostDto(h: HostsTable): HostDto {
   };
 }
 
+export function projectHosts<T extends { id: string }>(
+  items: T[],
+  fields?: string,
+): Array<Partial<T> & { id: string }> {
+  if (!fields) return items;
+  const keys = fields.split(',').map((f) => f.trim()).filter(Boolean);
+  return items.map((item) => {
+    const out = { id: item.id } as Partial<T> & { id: string };
+    const source = item as Record<string, unknown>;
+    for (const key of keys) {
+      if (key in source) (out as Record<string, unknown>)[key] = source[key];
+    }
+    return out;
+  });
+}
+
 export async function listHosts(
   db: Kysely<DatabaseSchema>,
   query: { limit: number; cursor?: string; q?: string; env?: string; status?: string },
@@ -136,6 +152,9 @@ export async function createHost(
   input: HostCreateInput,
   actor: Actor,
 ): Promise<HostDto> {
+  if (actor.kind === 'agent' && (input.credentialId || input.keypairId)) {
+    throw errors.forbidden('Agent 令牌创建主机时不可绑定凭据或密钥对');
+  }
   if (input.credentialId) {
     const cred = await db.selectFrom('credentials').select('id').where('id', '=', input.credentialId).executeTakeFirst();
     if (!cred) throw errors.notFound('凭据');
@@ -214,7 +233,23 @@ export async function patchHost(
   patch: HostPatchInput,
   actor: Actor,
 ): Promise<HostDto> {
+  if (actor.kind === 'agent') {
+    const blocked = (['address', 'port', 'sshUser', 'credentialId', 'keypairId'] as const).filter(
+      (k) => patch[k] !== undefined,
+    );
+    if (blocked.length) {
+      throw errors.forbidden(`Agent 令牌不可修改连接字段：${blocked.join(', ')}`);
+    }
+  }
   const current = await getHostRow(db, id);
+  if (patch.credentialId) {
+    const cred = await db.selectFrom('credentials').select('id').where('id', '=', patch.credentialId).executeTakeFirst();
+    if (!cred) throw errors.notFound('凭据');
+  }
+  if (patch.keypairId) {
+    const kp = await db.selectFrom('keypairs').select('id').where('id', '=', patch.keypairId).executeTakeFirst();
+    if (!kp) throw errors.notFound('密钥对');
+  }
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   const map: Array<[keyof HostPatchInput, keyof HostsTable, (v: unknown) => unknown]> = [
     ['name', 'name', (v) => v],
@@ -237,14 +272,18 @@ export async function patchHost(
   for (const [from, to, transform] of map) {
     if (patch[from] !== undefined) updates[to] = transform(patch[from]);
   }
-  if (patch.credentialId) {
-    await db
-      .insertInto('host_credentials')
-      .values({ host_id: id, credential_id: patch.credentialId, role: 'primary' })
-      .onConflict((oc) => oc.doNothing())
-      .execute();
-  }
-  await db.updateTable('hosts').set(updates as never).where('id', '=', id).execute();
+  await db.transaction().execute(async (trx) => {
+    await trx.updateTable('hosts').set(updates as never).where('id', '=', id).execute();
+    if (patch.credentialId === null) {
+      await trx.deleteFrom('host_credentials').where('host_id', '=', id).execute();
+    } else if (patch.credentialId) {
+      await trx
+        .insertInto('host_credentials')
+        .values({ host_id: id, credential_id: patch.credentialId, role: 'primary' })
+        .onConflict((oc) => oc.doNothing())
+        .execute();
+    }
+  });
   await writeAudit(db, {
     actorId: actor.id,
     actorLabel: actor.label,

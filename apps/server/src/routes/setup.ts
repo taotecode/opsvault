@@ -4,6 +4,7 @@ import {
   setupTestDbSchema,
 } from '@boerfen/shared';
 import {
+  checkEnvironment,
   completeSetup,
   currentSetupToken,
   isInstalled,
@@ -20,8 +21,14 @@ async function ensureSetupOpen(app: FastifyInstance): Promise<void> {
 }
 
 export async function setupRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/api/v1/setup/status', async () => {
+  app.get('/api/v1/setup/status', { config: { rateLimit: false } }, async () => {
     const status = await setupStatus(app.db, app.config);
+    return { data: status };
+  });
+
+  app.get('/api/v1/bootstrap/status', { config: { rateLimit: false } }, async () => {
+    const status = await setupStatus(app.db, app.config);
+    if (status.installed) throw errors.setupLocked();
     return { data: status };
   });
 
@@ -48,10 +55,15 @@ export async function setupRoutes(app: FastifyInstance): Promise<void> {
       database: body.database as never,
       admin: body.admin,
     });
-    const oldDb = app.db;
-    app.db = result.db;
+    const oldDb = app.dbState.current;
+    app.dbState.current = result.db;
     await oldDb.destroy();
     return { data: { ok: true, adminEmail: result.adminEmail, locked: true } };
+  });
+
+  app.get('/api/v1/setup/env-check', async () => {
+    await ensureSetupOpen(app);
+    return { data: checkEnvironment(app.config) };
   });
 
   // 仅供 CLI 初始化提示使用（不泄露 token）

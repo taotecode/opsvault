@@ -19,6 +19,27 @@ import { findUserByEmail, findUserById, userDto, type UserDto } from './users.js
 import { writeAudit } from '../lib/audit.js';
 import type { Actor } from '../lib/actor.js';
 import type { RequestAuth } from '../lib/permissions.js';
+import { securitySettings } from './settings.js';
+
+const loginFailures = new Map<string, { fails: number; firstAt: number; lockedUntil: number }>();
+const LOCKOUT_WINDOW_MS = 15 * 60_000;
+const LOCKOUT_MS = 15 * 60_000;
+const LOCKOUT_MAX_FAILS = 5;
+
+function isLocked(entry: { lockedUntil: number } | undefined): boolean {
+  return !!entry && entry.lockedUntil > Date.now();
+}
+
+function recordLoginFailure(key: string): void {
+  const now = Date.now();
+  const entry = loginFailures.get(key);
+  if (!entry || now - entry.firstAt > LOCKOUT_WINDOW_MS) {
+    loginFailures.set(key, { fails: 1, firstAt: now, lockedUntil: 0 });
+    return;
+  }
+  entry.fails += 1;
+  if (entry.fails >= LOCKOUT_MAX_FAILS) entry.lockedUntil = now + LOCKOUT_MS;
+}
 
 const totpEnvelope = (usersRow: UsersTable, config: AppConfig): string | null => {
   if (!usersRow.totp_secret_enc) return null;
@@ -50,8 +71,25 @@ export async function login(
   input: { email: string; password: string; totp?: string },
   meta: { ip: string | null; ua: string | null },
 ): Promise<LoginResult> {
+  const sec = await securitySettings(db);
+  const lockKey = input.email.trim().toLowerCase();
+  if (sec.loginLockout && isLocked(loginFailures.get(lockKey))) {
+    await writeAudit(db, {
+      actorId: null,
+      actorLabel: input.email,
+      actorKind: 'user',
+      action: '登录被锁定',
+      category: 'auth',
+      detail: { reason: 'locked' },
+      ip: meta.ip,
+      ua: meta.ua,
+      success: false,
+    });
+    throw errors.rateLimited();
+  }
   const user = await findUserByEmail(db, input.email);
   const fail = async (reason: string): Promise<never> => {
+    if (sec.loginLockout) recordLoginFailure(lockKey);
     await writeAudit(db, {
       actorId: user?.id ?? null,
       actorLabel: user?.username ?? input.email,
@@ -71,6 +109,12 @@ export async function login(
   }
   const ok = await verifyPassword(user.password_hash, input.password);
   if (!ok) return fail('bad_password');
+  if (sec.forceTotp && !user.totp_enabled && user.role !== 'admin') {
+    throw errors.forbidden(
+      '管理员已要求启用 TOTP',
+      '请管理员临时关闭强制 TOTP，登录后完成绑定再重新开启',
+    );
+  }
   if (user.totp_enabled) {
     if (!input.totp) {
       throw errors.forbidden('该账号已启用二次验证', '需要 TOTP 动态口令');
@@ -110,6 +154,7 @@ export async function login(
     ip: meta.ip,
     ua: meta.ua,
   });
+  loginFailures.delete(lockKey);
   return { user: userDto(user), sessionToken, csrfToken, expiresAt: expires };
 }
 
@@ -154,7 +199,8 @@ export async function startReveal(
   if (!user) throw errors.unauthorized();
   const ok = await verifyPassword(user.password_hash, password);
   if (!ok) throw errors.forbidden('密码不正确');
-  const revealUntil = new Date(Date.now() + config.revealWindowMinutes * 60_000).toISOString();
+  const sec = await securitySettings(db);
+  const revealUntil = new Date(Date.now() + sec.revealWindowMinutes * 60_000).toISOString();
   await db
     .updateTable('sessions')
     .set({ reveal_until: revealUntil })
@@ -174,7 +220,7 @@ export async function startReveal(
 export function requireReveal(auth: RequestAuth): void {
   if (auth.via !== 'session') throw errors.forbidden('敏感操作仅支持登录会话');
   if (!auth.revealUntil || new Date(auth.revealUntil) <= new Date()) {
-    throw errors.forbidden('需要先完成二次验证', '请在 5 分钟内通过 /api/v1/auth/reveal 验证密码');
+    throw errors.forbidden('需要先完成二次验证', '请通过 /api/v1/auth/reveal 验证密码');
   }
 }
 
@@ -184,6 +230,9 @@ export async function beginTotpSetup(
   auth: RequestAuth,
 ): Promise<{ secret: string; uri: string }> {
   if (auth.via !== 'session') throw errors.forbidden('仅登录会话可绑定 TOTP');
+  const user = await findUserById(db, auth.user.id);
+  if (!user) throw errors.unauthorized();
+  if (user.totp_enabled) requireReveal(auth);
   const secret = generateTotpSecret();
   const envelope = JSON.stringify(encryptSecret(secret, getMasterKey(config)));
   await db
@@ -219,11 +268,22 @@ export async function disableTotp(
   db: Kysely<DatabaseSchema>,
   auth: RequestAuth,
 ): Promise<void> {
+  requireReveal(auth);
+  const user = await findUserById(db, auth.user.id);
+  if (!user) throw errors.unauthorized();
   await db
     .updateTable('users')
     .set({ totp_enabled: 0, totp_secret_enc: null })
-    .where('id', '=', auth.user.id)
+    .where('id', '=', user.id)
     .execute();
+  await writeAudit(db, {
+    actorId: user.id,
+    actorLabel: user.username,
+    actorKind: 'user',
+    action: '停用 TOTP',
+    category: 'auth',
+    ip: null,
+  });
 }
 
 export async function changePassword(
@@ -240,6 +300,14 @@ export async function changePassword(
     .set({ password_hash: await hashPassword(input.newPassword) })
     .where('id', '=', user.id)
     .execute();
+  if (auth.sessionId) {
+    await db
+      .deleteFrom('sessions')
+      .where('user_id', '=', user.id)
+      .where('id', '!=', auth.sessionId)
+      .execute();
+  }
+  await db.deleteFrom('api_tokens').where('user_id', '=', user.id).execute();
   await writeAudit(db, {
     actorId: user.id,
     actorLabel: user.username,

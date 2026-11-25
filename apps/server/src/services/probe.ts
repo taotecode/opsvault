@@ -8,6 +8,8 @@ import { errors } from '../lib/errors.js';
 import { writeAudit } from '../lib/audit.js';
 import type { Actor } from '../lib/actor.js';
 import { getHostRow, hostDto, type HostDto } from './hosts.js';
+import { probeSettings } from './settings.js';
+import { sendWebhook } from './webhook.js';
 
 export interface ProbeResult {
   host: HostDto;
@@ -19,6 +21,27 @@ function statusFor(partial: number, disks: Array<{ usePct: number }>): 'online' 
   return partial > 0 || highDisk ? 'warning' : 'online';
 }
 
+async function pruneSnapshots(
+  db: Kysely<DatabaseSchema>,
+  hostId: string,
+  keep: number,
+): Promise<void> {
+  const stale = await db
+    .selectFrom('probe_snapshots')
+    .select('id')
+    .where('host_id', '=', hostId)
+    .orderBy('created_at', 'desc')
+    .offset(keep)
+    .limit(200)
+    .execute();
+  if (stale.length) {
+    await db
+      .deleteFrom('probe_snapshots')
+      .where('id', 'in', stale.map((s) => s.id))
+      .execute();
+  }
+}
+
 export async function probeHost(
   db: Kysely<DatabaseSchema>,
   config: AppConfig,
@@ -27,40 +50,42 @@ export async function probeHost(
 ): Promise<ProbeResult> {
   const host = await getHostRow(db, hostId);
   const now = new Date().toISOString();
+  const probeCfg = await probeSettings(db);
   let client: Awaited<ReturnType<typeof openSsh>>['client'] | null = null;
   try {
     const auth = await resolveHostAuth(db, config, host);
     const opened = await openSsh(host, auth, host.host_key_fp);
     client = opened.client;
     await persistHostFingerprint(db, host.id, host.host_key_fp, opened.fingerprint);
-    const { stdout } = await execRemote(client, PROBE_SCRIPT, 25_000);
+    const { stdout } = await execRemote(client, PROBE_SCRIPT, probeCfg.timeoutSec * 1000);
     client.end();
     client = null;
     const { facts, partial } = parseProbe(stdout);
     const disks = (facts.disks ?? []) as Array<{ usePct: number }>;
     const status = statusFor(partial.length, disks);
+    const updates: Record<string, unknown> = {
+      status,
+      last_probe_at: now,
+      probe_ok: 1,
+      host_key_fp: (await getHostRow(db, hostId)).host_key_fp,
+      updated_at: now,
+    };
+    if (facts.os !== undefined) updates.os = facts.os ?? null;
+    if (facts.kernel !== undefined) updates.kernel = facts.kernel ?? null;
+    if (facts.arch !== undefined) updates.arch = facts.arch ?? null;
+    if (facts.cpuModel !== undefined) updates.cpu_model = facts.cpuModel ?? null;
+    if (facts.cpuCores !== undefined) updates.cpu_cores = facts.cpuCores ?? null;
+    if (facts.memTotalMb !== undefined) updates.mem_total_mb = facts.memTotalMb ?? null;
+    if (facts.disks !== undefined) updates.disk_json = facts.disks ? JSON.stringify(facts.disks) : null;
+    if (facts.ips !== undefined) updates.ips_json = facts.ips ? JSON.stringify(facts.ips) : null;
+    if (facts.loadAvg !== undefined) updates.load_avg = facts.loadAvg ?? null;
+    if (facts.uptimeSec !== undefined) updates.uptime_sec = facts.uptimeSec ?? null;
+    if (facts.virtualization !== undefined) updates.virtualization = facts.virtualization ?? null;
+    if (facts.containers !== undefined) updates.containers = facts.containers ?? null;
+    if (facts.timezone !== undefined) updates.timezone = facts.timezone ?? null;
     await db
       .updateTable('hosts')
-      .set({
-        status,
-        os: facts.os ?? null,
-        kernel: facts.kernel ?? null,
-        arch: facts.arch ?? null,
-        cpu_model: facts.cpuModel ?? null,
-        cpu_cores: facts.cpuCores ?? null,
-        mem_total_mb: facts.memTotalMb ?? null,
-        disk_json: facts.disks ? JSON.stringify(facts.disks) : null,
-        ips_json: facts.ips ? JSON.stringify(facts.ips) : null,
-        load_avg: facts.loadAvg ?? null,
-        uptime_sec: facts.uptimeSec ?? null,
-        virtualization: facts.virtualization ?? null,
-        containers: facts.containers ?? null,
-        timezone: facts.timezone ?? null,
-        last_probe_at: now,
-        probe_ok: 1,
-        host_key_fp: (await getHostRow(db, hostId)).host_key_fp,
-        updated_at: now,
-      })
+      .set(updates as never)
       .where('id', '=', hostId)
       .execute();
     await db
@@ -75,6 +100,7 @@ export async function probeHost(
         created_at: now,
       })
       .execute();
+    await pruneSnapshots(db, hostId, probeCfg.snapshotKeep);
     await writeAudit(db, {
       actorId: actor.id,
       actorLabel: actor.label,
@@ -108,6 +134,8 @@ export async function probeHost(
         created_at: now,
       })
       .execute();
+    await pruneSnapshots(db, hostId, probeCfg.snapshotKeep);
+    void sendWebhook(db, 'probe.failed', { hostId, host: host.name, error: message }).catch(() => undefined);
     await writeAudit(db, {
       actorId: actor.id,
       actorLabel: actor.label,
@@ -131,7 +159,7 @@ export async function probeMany(
   actor: Actor,
 ): Promise<Array<{ hostId: string; name?: string; ok: boolean; error?: string }>> {
   const results: Array<{ hostId: string; name?: string; ok: boolean; error?: string }> = [];
-  const concurrency = 3;
+  const { concurrency } = await probeSettings(db);
   const queue = [...hostIds];
   const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
     while (queue.length) {

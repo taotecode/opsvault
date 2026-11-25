@@ -23,8 +23,8 @@ const AGENT_ALLOWED_SCOPES: Scope[] = [
   'hosts:write',
   'credentials:read',
   'keypairs:read',
-  'keypairs:write',
   'audit:read',
+  'system:read',
 ];
 
 function tokenDto(row: {
@@ -37,7 +37,7 @@ function tokenDto(row: {
   last_used_at: string | null;
   created_at: string;
 }): TokenDto {
-  let scopes: Scope[] = [];
+  let scopes: Scope[];
   try {
     scopes = JSON.parse(row.scopes_json) as Scope[];
   } catch {

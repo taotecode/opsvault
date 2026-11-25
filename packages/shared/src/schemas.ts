@@ -46,23 +46,37 @@ export const setupDatabaseSchema = z.discriminatedUnion('driver', [
     password: z.string().max(500).optional(),
   }),
 ]);
+export const setupAdminSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(8).max(200),
+  enableTotp: z.boolean().optional().default(false),
+});
 export const setupCompleteSchema = z.object({
   token: z.string().min(1).max(200),
   database: setupDatabaseSchema,
-  admin: z.object({
-    email: emailSchema,
-    password: z.string().min(8).max(200),
-    enableTotp: z.boolean().optional().default(false),
-  }),
+  admin: setupAdminSchema,
 });
 export const setupTestDbSchema = z.object({ database: setupDatabaseSchema });
 
 /* ---------- hosts ---------- */
+export const hostAddressSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(300)
+  .regex(/^[A-Za-z0-9._:-]+$/, '地址只允许字母、数字、点、下划线、冒号与连字符（IPv6 直接填写）');
+export const sshUserSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9._-]+$/, 'SSH 用户名只允许字母、数字、点、下划线与连字符');
+
 export const hostCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  address: z.string().trim().min(1).max(300),
+  address: hostAddressSchema,
   port: z.coerce.number().int().min(1).max(65535).default(22),
-  sshUser: z.string().trim().min(1).max(80).default('root'),
+  sshUser: sshUserSchema.default('root'),
   env: z.enum(HOST_ENVS).default('prod'),
   group: z.string().trim().max(120).optional(),
   provider: z.string().trim().max(120).optional(),
@@ -70,16 +84,34 @@ export const hostCreateSchema = z.object({
   notes: z.string().max(2000).optional(),
   bandwidthMbps: z.coerce.number().int().min(0).nullable().optional(),
   trafficTb: z.coerce.number().min(0).nullable().optional(),
-  billingType: z.enum(['包年包月', '按量付费', '其他']).optional(),
+  billingType: z.enum(['包年包月', '按量付费', '其他']).nullable().optional(),
   costMonth: z.coerce.number().min(0).nullable().optional(),
   expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   credentialId: idSchema.nullable().optional(),
   keypairId: idSchema.nullable().optional(),
 });
 export type HostCreateInput = z.infer<typeof hostCreateSchema>;
-export const hostPatchSchema = hostCreateSchema.partial().refine((v) => Object.keys(v).length > 0, {
-  message: 'empty patch',
-});
+/** 单独定义补丁 schema：不能由带 defaults 的创建 schema .partial() 派生，否则缺省字段会被默认值回填 */
+export const hostPatchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    address: hostAddressSchema.optional(),
+    port: z.coerce.number().int().min(1).max(65535).optional(),
+    sshUser: sshUserSchema.optional(),
+    env: z.enum(HOST_ENVS).optional(),
+    group: z.string().trim().max(120).nullable().optional(),
+    provider: z.string().trim().max(120).nullable().optional(),
+    tags: z.array(z.string().trim().max(40)).max(20).optional(),
+    notes: z.string().max(2000).nullable().optional(),
+    bandwidthMbps: z.coerce.number().int().min(0).nullable().optional(),
+    trafficTb: z.coerce.number().min(0).nullable().optional(),
+    billingType: z.enum(['包年包月', '按量付费', '其他']).nullable().optional(),
+    costMonth: z.coerce.number().min(0).nullable().optional(),
+    expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    credentialId: idSchema.nullable().optional(),
+    keypairId: idSchema.nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty patch' });
 export type HostPatchInput = z.infer<typeof hostPatchSchema>;
 export const hostListQuerySchema = paginationSchema.extend({
   env: z.enum(HOST_ENVS).optional(),

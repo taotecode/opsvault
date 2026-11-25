@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { auditQuerySchema } from '@boerfen/shared';
-import { scopeCheck } from '../lib/permissions.js';
+import { denyAgent, getAuth, requireAdmin, requireSession, scopeCheck } from '../lib/permissions.js';
 import { parseQuery } from '../lib/validate.js';
+import { requireReveal } from '../services/auth.js';
+import { writeAudit } from '../lib/audit.js';
+import { actorFromRequest } from '../lib/actor.js';
 
 export async function auditRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/audit', async (req) => {
@@ -39,6 +42,25 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
       success: !!r.success,
     }));
     return { data: items, page: { cursor: hasMore ? String(offset + query.limit) : null, hasMore } };
+  });
+
+  app.delete('/api/v1/audit', async (req) => {
+    denyAgent(req);
+    requireSession(req);
+    requireAdmin(req);
+    requireReveal(getAuth(req));
+    const count = await app.db.selectFrom('audit_logs').select('id').execute();
+    await app.db.deleteFrom('audit_logs').execute();
+    await writeAudit(app.db, {
+      ...actorFromRequest(req),
+      actorId: req.auth?.user.id ?? null,
+      actorLabel: req.auth?.actorLabel ?? 'system',
+      actorKind: req.auth?.actorKind ?? 'system',
+      action: '清空审计日志',
+      category: 'system',
+      detail: { deleted: count.length },
+    });
+    return { data: { ok: true, deleted: count.length } };
   });
 }
 

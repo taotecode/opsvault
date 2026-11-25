@@ -15,6 +15,11 @@ export function createDatabase(cfg: DbConfig): Kysely<DatabaseSchema> {
   const file = cfg.path;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const database = new BetterSqlite3(file);
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {
+    /* best effort */
+  }
   database.pragma('journal_mode = WAL');
   database.pragma('foreign_keys = ON');
   database.pragma('busy_timeout = 5000');
@@ -133,7 +138,7 @@ const migrations: Record<string, Migration> = {
         .addColumn('last_probe_at', 'text')
         .addColumn('probe_ok', 'integer')
         .addColumn('bandwidth_mbps', 'integer')
-        .addColumn('traffic_tb', 'integer')
+        .addColumn('traffic_tb', 'real')
         .addColumn('billing_type', 'text')
         .addColumn('cost_month', 'real')
         .addColumn('expires_at', 'text')

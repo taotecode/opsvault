@@ -6,7 +6,7 @@ async function main(): Promise<void> {
   const db = createDatabase(config.db);
   try {
     await migrateToLatest(db);
-    // eslint-disable-next-line no-console
+
     console.log(`迁移完成（${config.db.driver}）`);
   } finally {
     await db.destroy();
@@ -14,7 +14,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
+
   console.error(err);
   process.exit(1);
 });

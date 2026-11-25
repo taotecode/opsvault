@@ -27,6 +27,7 @@ export const SCOPES = [
   'keypairs:read',
   'keypairs:write',
   'audit:read',
+  'system:read',
   'users:read',
   'users:write',
   'settings:read',
@@ -42,6 +43,7 @@ export const DEFAULT_TOKEN_SCOPES: Scope[] = [
   'credentials:read',
   'keypairs:read',
   'audit:read',
+  'system:read',
 ];
 
 export const APP_NAME = '铂尔分服务器资产管理平台';

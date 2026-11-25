@@ -1,8 +1,15 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import type { RequestAuth } from '../lib/permissions.js';
 import { errors } from '../lib/errors.js';
-import type { Scope } from '@boerfen/shared';
-import { listHosts, getHostRow, hostDto, createHost, patchHost } from '../services/hosts.js';
+import {
+  hostCreateSchema,
+  hostListQuerySchema,
+  hostPatchSchema,
+  idSchema,
+  type Scope,
+} from '@boerfen/shared';
+import { listHosts, getHostRow, hostDto, createHost, patchHost, projectHosts } from '../services/hosts.js';
 import { probeHost } from '../services/probe.js';
 import { listCredentials } from '../services/credentials.js';
 import { listKeypairs, connectCommand } from '../services/keypairs.js';
@@ -34,6 +41,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         env: { type: 'string', enum: ['prod', 'staging', 'dev'] },
         status: { type: 'string', enum: ['pending', 'online', 'warning', 'offline'] },
         limit: { type: 'number', minimum: 1, maximum: 100, default: 50 },
+        fields: { type: 'string', description: '逗号分隔的字段名，如 id,name,status,address' },
       },
     },
   },
@@ -149,7 +157,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'system_version',
     description: '返回平台版本、数据库引擎与安装状态。',
     safety: 'read',
-    scope: 'settings:read',
+    scope: 'system:read',
     inputSchema: { type: 'object', properties: {} },
   },
 ];
@@ -165,6 +173,24 @@ function ensureScope(auth: RequestAuth, scope: Scope): void {
 function toolByName(name: string): ToolDefinition | undefined {
   return TOOL_DEFINITIONS.find((t) => t.name === name);
 }
+
+function parseArgs<T>(schema: z.ZodType<T>, args: unknown): T {
+  const result = schema.safeParse(args ?? {});
+  if (!result.success) throw errors.validation(result.error.issues, '检查工具参数');
+  return result.data;
+}
+
+const hostIdArgs = z.object({ id: idSchema });
+const hostsSearchArgs = z.object({
+  q: z.string().trim().min(1).max(200),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+const hostsUpdateArgs = z.object({ id: idSchema, patch: hostPatchSchema });
+const connectCommandArgs = z.object({ id: idSchema, hostId: idSchema.optional() });
+const auditListArgs = z.object({
+  category: z.string().max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
 
 export async function executeTool(
   app: FastifyInstance,
@@ -185,61 +211,53 @@ export async function executeTool(
 
   switch (name) {
     case 'hosts_list': {
+      const query = parseArgs(hostListQuerySchema, args);
       const result = await listHosts(app.db, {
-        limit: Number(args.limit ?? 50),
-        q: args.q as string | undefined,
-        env: args.env as string | undefined,
-        status: args.status as string | undefined,
+        limit: query.limit,
+        q: query.q,
+        env: query.env,
+        status: query.status,
       });
-      return { data: result.items, page: { cursor: result.nextCursor, hasMore: result.hasMore } };
+      return {
+        data: projectHosts(result.items, query.fields),
+        page: { cursor: result.nextCursor, hasMore: result.hasMore },
+      };
     }
-    case 'host_get':
-      return { data: hostDto(await getHostRow(app.db, String(args.id))) };
+    case 'host_get': {
+      const { id } = parseArgs(hostIdArgs, args);
+      return { data: hostDto(await getHostRow(app.db, id)) };
+    }
     case 'hosts_search': {
-      const result = await listHosts(app.db, {
-        limit: Number(args.limit ?? 20),
-        q: String(args.q ?? ''),
-      });
+      const query = parseArgs(hostsSearchArgs, args);
+      const result = await listHosts(app.db, { limit: query.limit, q: query.q });
       return { data: result.items };
     }
     case 'hosts_create': {
-      const created = await createHost(
-        app.db,
-        {
-          name: String(args.name),
-          address: String(args.address),
-          port: Number(args.port ?? 22),
-          sshUser: String(args.sshUser ?? 'root'),
-          env: (args.env as 'prod' | 'staging' | 'dev') ?? 'prod',
-          group: args.group as string | undefined,
-          provider: args.provider as string | undefined,
-          notes: args.notes as string | undefined,
-          bandwidthMbps: args.bandwidthMbps as number | undefined,
-          expiresAt: (args.expiresAt as string | undefined) ?? null,
-        } as never,
-        actor,
-      );
+      const input = parseArgs(hostCreateSchema, args);
+      const created = await createHost(app.db, input, actor);
       return { data: created };
     }
     case 'hosts_update': {
-      const id = String(args.id);
-      const patch = (args.patch ?? {}) as Record<string, unknown>;
-      return { data: await patchHost(app.db, id, patch as never, actor) };
+      const { id, patch } = parseArgs(hostsUpdateArgs, args);
+      return { data: await patchHost(app.db, id, patch, actor) };
     }
     case 'host_probe': {
-      const result = await probeHost(app.db, app.config, String(args.id), actor);
+      const { id } = parseArgs(hostIdArgs, args);
+      const result = await probeHost(app.db, app.config, id, actor);
       return { data: { host: result.host, partial: result.partial } };
     }
     case 'credentials_list_meta':
       return { data: await listCredentials(app.db) };
     case 'keypairs_list':
       return { data: await listKeypairs(app.db) };
-    case 'keypairs_connect_command':
-      return { data: await connectCommand(app.db, String(args.id), args.hostId as string | undefined) };
+    case 'keypairs_connect_command': {
+      const { id, hostId } = parseArgs(connectCommandArgs, args);
+      return { data: await connectCommand(app.db, id, hostId) };
+    }
     case 'audit_list': {
-      const limit = Number(args.limit ?? 20);
+      const { limit, category } = parseArgs(auditListArgs, args);
       let qb = app.db.selectFrom('audit_logs').selectAll().orderBy('created_at', 'desc').limit(limit);
-      if (args.category) qb = qb.where('target_type', '=', String(args.category));
+      if (category) qb = qb.where('target_type', '=', category);
       const rows = await qb.execute();
       return {
         data: rows.map((r) => ({

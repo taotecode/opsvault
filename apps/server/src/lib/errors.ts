@@ -51,8 +51,20 @@ export function sendError(reply: FastifyReply, err: unknown): void {
     });
     return;
   }
-  const message = err instanceof Error ? err.message : 'unknown error';
+  reply.log.error({ err }, 'unhandled request error');
+  const status = (err as { statusCode?: number }).statusCode;
+  if (status && status >= 400 && status < 500) {
+    reply.status(status).send({
+      error: {
+        code: 'VALIDATION_FAILED',
+        message: '请求格式不正确',
+        hint: status === 413 ? '请求体过大' : '检查请求体与 Content-Type',
+        docsUrl: '/api/docs#error-validation_failed',
+      },
+    });
+    return;
+  }
   reply.status(500).send({
-    error: { code: 'INTERNAL', message, docsUrl: '/api/docs' },
+    error: { code: 'INTERNAL', message: '服务器内部错误', docsUrl: '/api/docs' },
   });
 }

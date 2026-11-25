@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Kysely } from 'kysely';
 import { APP_VERSION } from '@boerfen/shared';
 import type { AppConfig } from '../config.js';
@@ -9,13 +11,18 @@ export function versionInfo(config: AppConfig): {
   buildDate: string | null;
   database: string;
   baseUrl: string;
+  masterKeySource: 'env' | 'file' | 'missing';
+  masterKeyRotationSupported: boolean;
 } {
+  const keyFile = path.join(config.dataDir, 'master.key');
   return {
     version: APP_VERSION,
     commit: process.env.GIT_COMMIT || 'dev',
     buildDate: process.env.BUILD_DATE || null,
     database: config.db.driver,
     baseUrl: config.baseUrl,
+    masterKeySource: config.masterKey ? 'env' : fs.existsSync(keyFile) ? 'file' : 'missing',
+    masterKeyRotationSupported: !config.masterKey,
   };
 }
 

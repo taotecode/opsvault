@@ -28,6 +28,7 @@ declare module 'fastify' {
   }
   interface FastifyInstance {
     db: import('kysely').Kysely<import('../db/types.js').DatabaseSchema>;
+    dbState: { current: import('kysely').Kysely<import('../db/types.js').DatabaseSchema> };
     config: import('../config.js').AppConfig;
     masterKey: Buffer;
   }
@@ -43,11 +44,24 @@ export function requireRole(
   roles: Array<'admin' | 'operator' | 'viewer'>,
 ): RequestAuth {
   const auth = getAuth(req);
+  if (auth.via === 'token' && auth.tokenKind === 'agent') {
+    throw errors.forbidden('Agent 令牌不可访问该能力');
+  }
   if (!roles.includes(auth.user.role)) throw errors.forbidden(`需要角色：${roles.join(' / ')}`);
   return auth;
 }
 
+export function requireSession(req: FastifyRequest): RequestAuth {
+  const auth = getAuth(req);
+  if (auth.via !== 'session') throw errors.forbidden('该操作仅支持登录会话，不支持 API 令牌');
+  return auth;
+}
+
 export function requireAdmin(req: FastifyRequest): RequestAuth {
+  const auth = getAuth(req);
+  if (auth.via === 'token' && auth.tokenKind === 'agent') {
+    throw errors.forbidden('Agent 令牌不可访问管理能力');
+  }
   return requireRole(req, ['admin']);
 }
 

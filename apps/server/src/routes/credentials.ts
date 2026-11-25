@@ -14,7 +14,7 @@ import {
 } from '../services/credentials.js';
 import { generatePassword, passwordStrength } from '../lib/crypto.js';
 import { actorFromRequest } from '../lib/actor.js';
-import { denyAgent, getAuth, scopeCheck } from '../lib/permissions.js';
+import { denyAgent, getAuth, requireRole, scopeCheck } from '../lib/permissions.js';
 import { parseBody } from '../lib/validate.js';
 import { errors } from '../lib/errors.js';
 
@@ -50,6 +50,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/v1/credentials/:id/reveal', async (req) => {
     scopeCheck('credentials:read')(req);
     denyAgent(req);
+    requireRole(req, ['admin', 'operator']);
     const auth = getAuth(req);
     if (auth.via !== 'session') throw errors.forbidden('敏感操作仅支持登录会话');
     if (!isRevealWindowActive(auth.revealUntil)) {

@@ -60,7 +60,8 @@ function sections(raw: string): Record<string, string> {
       continue;
     }
     if (current) {
-      out[current] += '\n' + line;
+      const prev = out[current]!;
+      out[current] = prev ? prev + '\n' + line : line;
     }
   }
   return out;

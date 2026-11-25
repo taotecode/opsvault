@@ -58,6 +58,11 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   readEnvFile();
   const dataDir = path.resolve(process.env.DATA_DIR || './data');
   fs.mkdirSync(dataDir, { recursive: true });
+  try {
+    fs.chmodSync(dataDir, 0o700);
+  } catch {
+    /* best effort (e.g. Windows) */
+  }
   const runtimeConfigPath = path.join(dataDir, 'runtime-config.json');
 
   const fromFile = readRuntimeDbConfig(runtimeConfigPath);

@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { ulid } from 'ulid';
 import type { Kysely } from 'kysely';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION, setupAdminSchema } from '@boerfen/shared';
 import type { AppConfig, DbConfig } from '../config.js';
 import type { DatabaseSchema } from '../db/types.js';
 import { createDatabase, migrateToLatest, testDatabase } from '../db/database.js';
@@ -17,7 +18,7 @@ export async function isInstalled(
   db: Kysely<DatabaseSchema>,
   config: AppConfig,
 ): Promise<{ installed: boolean; locked: boolean }> {
-  const locked = fs.existsSync(installLockPath(config));
+  const locked = fs.existsSync(installLockPath(config)) || config.forceInstallLock;
   const users = await countUsers(db);
   return { installed: locked || users > 0, locked };
 }
@@ -32,6 +33,28 @@ export async function setupStatus(
 
 export function currentSetupToken(config: AppConfig): string {
   return getOrCreateSetupToken(config.dataDir);
+}
+
+export interface EnvironmentCheck {
+  nodeVersion: string;
+  openssh: boolean;
+  dataDirWritable: boolean;
+}
+
+export function checkEnvironment(config: AppConfig): EnvironmentCheck {
+  const ssh = spawnSync('ssh-keygen', ['-V'], { encoding: 'utf8', timeout: 2_000 });
+  let dataDirWritable = false;
+  try {
+    fs.accessSync(config.dataDir, fs.constants.W_OK);
+    dataDirWritable = true;
+  } catch {
+    /* not writable */
+  }
+  return {
+    nodeVersion: process.version,
+    openssh: !ssh.error,
+    dataDirWritable,
+  };
 }
 
 export function verifySetupToken(config: AppConfig, token: string): void {
@@ -135,10 +158,12 @@ export async function completeSetup(
   fs.writeFileSync(
     config.runtimeConfigPath,
     JSON.stringify({ database: target, installedAt: now }, null, 2),
+    { mode: 0o600 },
   );
   fs.writeFileSync(
     installLockPath(config),
     JSON.stringify({ installedAt: now, version: APP_VERSION, database: target.driver }, null, 2),
+    { mode: 0o600 },
   );
   clearSetupToken(config.dataDir);
   return { db: newDb, adminEmail: input.admin.email };
@@ -150,6 +175,14 @@ export async function autoInstallFromEnv(
   config: AppConfig,
 ): Promise<boolean> {
   if (!config.adminEmail || !config.adminPassword) return false;
+  const parsed = setupAdminSchema.safeParse({
+    email: config.adminEmail,
+    password: config.adminPassword,
+    enableTotp: false,
+  });
+  if (!parsed.success) {
+    throw new Error('ADMIN_EMAIL/ADMIN_PASSWORD 不合法：邮箱需有效，密码至少 8 位');
+  }
   const users = await countUsers(db);
   if (users > 0) return false;
   await createUser(db, {
@@ -160,20 +193,21 @@ export async function autoInstallFromEnv(
   fs.writeFileSync(
     installLockPath(config),
     JSON.stringify({ installedAt: new Date().toISOString(), version: APP_VERSION, database: config.db.driver, via: 'env' }, null, 2),
+    { mode: 0o600 },
   );
   clearSetupToken(config.dataDir);
   return true;
 }
 
 export async function resetInstall(db: Kysely<DatabaseSchema>, config: AppConfig): Promise<void> {
+  const users = await countUsers(db);
+  if (users > 0) {
+    throw errors.conflict('仍有用户存在；重装前请先备份并清空数据库');
+  }
   try {
     fs.rmSync(installLockPath(config));
   } catch {
     /* ignore */
-  }
-  const users = await countUsers(db);
-  if (users > 0) {
-    throw errors.conflict('仍有用户存在；重装前请先备份并清空数据库');
   }
   await db
     .insertInto('audit_logs')

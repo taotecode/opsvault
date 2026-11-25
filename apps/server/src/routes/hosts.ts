@@ -13,6 +13,7 @@ import {
   listHosts,
   listSnapshots,
   patchHost,
+  projectHosts,
 } from '../services/hosts.js';
 import { probeHost, probeMany } from '../services/probe.js';
 import { actorFromRequest } from '../lib/actor.js';
@@ -30,7 +31,7 @@ export async function hostRoutes(app: FastifyInstance): Promise<void> {
       env: query.env,
       status: query.status,
     });
-    return { data: result.items, page: { cursor: result.nextCursor, hasMore: result.hasMore } };
+    return { data: projectHosts(result.items, query.fields), page: { cursor: result.nextCursor, hasMore: result.hasMore } };
   });
 
   app.get('/api/v1/hosts/:id', async (req) => {

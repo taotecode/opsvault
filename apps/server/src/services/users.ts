@@ -126,6 +126,19 @@ export async function patchUser(
 ): Promise<UserDto> {
   const user = await findUserById(db, id);
   if (!user) throw errors.notFound('用户');
+  const demoting = user.role === 'admin' && (input.role !== undefined && input.role !== 'admin');
+  const disabling = user.role === 'admin' && input.status === 'disabled';
+  if (demoting || disabling) {
+    if (actor.id === id) throw errors.forbidden('不能禁用或降级当前登录账号');
+    const otherAdmins = await db
+      .selectFrom('users')
+      .select('id')
+      .where('role', '=', 'admin')
+      .where('status', '=', 'active')
+      .where('id', '!=', id)
+      .execute();
+    if (!otherAdmins.length) throw errors.conflict('至少需要保留一名可用的管理员');
+  }
   const updates: Record<string, unknown> = {};
   if (input.role) updates.role = input.role;
   if (input.status) updates.status = input.status;

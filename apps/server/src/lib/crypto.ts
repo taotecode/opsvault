@@ -35,7 +35,7 @@ export function getMasterKey(config: AppConfig): Buffer {
   }
   const key = crypto.randomBytes(32);
   fs.writeFileSync(keyFile, b64(key), { mode: 0o600 });
-  // eslint-disable-next-line no-console
+
   console.log(`[setup] 已生成主密钥文件 ${keyFile}，请与数据库一起备份`);
   cachedMasterKey = key;
   return key;

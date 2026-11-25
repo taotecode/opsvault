@@ -13,3 +13,5 @@ test-results/
 apps/web/dist/
 apps/server/dist/
 /tmp/
+
+.e2e-data/

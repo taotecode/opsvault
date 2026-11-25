@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { APP_VERSION } from '@boerfen/shared';
 import { loadConfig } from './config.js';
 import { createDatabase, migrateToLatest } from './db/database.js';
 import {
@@ -7,6 +8,7 @@ import {
   installLockPath,
   isInstalled,
 } from './services/setup.js';
+import { startProbeScheduler } from './services/probeScheduler.js';
 import { buildApp } from './app.js';
 
 async function main(): Promise<void> {
@@ -19,30 +21,31 @@ async function main(): Promise<void> {
   if (state.installed && !state.locked) {
     fs.writeFileSync(
       installLockPath(config),
-      JSON.stringify({ installedAt: new Date().toISOString(), version: '0.1.0', inferred: true }, null, 2),
+      JSON.stringify({ installedAt: new Date().toISOString(), version: APP_VERSION, inferred: true }, null, 2),
     );
     state = await isInstalled(db, config);
   }
   if (!state.installed) {
     const token = currentSetupToken(config);
-    // eslint-disable-next-line no-console
+
     console.log('==================================================');
-    // eslint-disable-next-line no-console
+
     console.log('🚀 铂尔分服务器资产管理平台 首次安装');
-    // eslint-disable-next-line no-console
+
     console.log(`   安装地址： ${config.baseUrl}/setup`);
-    // eslint-disable-next-line no-console
+
     console.log(`   Setup Token： ${token}`);
-    // eslint-disable-next-line no-console
+
     console.log('   安装完成后 /setup 与安装 API 将永久返回 404。');
-    // eslint-disable-next-line no-console
+
     console.log('==================================================');
   } else if (installedByEnv) {
-    // eslint-disable-next-line no-console
+
     console.log('[setup] 已通过环境变量完成非交互安装，安装入口已锁定');
   }
 
   const app = await buildApp({ config, db });
+  startProbeScheduler(app);
   await app.listen({ port: config.port, host: '0.0.0.0' });
   app.log.info(`Boerfen Assets listening on ${config.baseUrl} (db=${config.db.driver})`);
 
@@ -57,7 +60,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
+
   console.error(err);
   process.exit(1);
 });

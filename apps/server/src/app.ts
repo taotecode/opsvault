@@ -65,14 +65,21 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   app.decorate('config', config);
-  app.decorate('db', db);
+  app.decorate('dbState', { current: db });
+  Object.defineProperty(app, 'db', {
+    configurable: true,
+    enumerable: false,
+    get() {
+      return (app as unknown as { dbState: { current: Kysely<DatabaseSchema> } }).dbState.current;
+    },
+  });
 
   await app.register(cookie, {});
   await app.register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
         fontSrc: ["'self'", 'data:'],
@@ -87,10 +94,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     global: true,
     max: 300,
     timeWindow: '1 minute',
-    allowList: ['/api/v1/health', '/api/v1/setup/status', '/api/v1/meta', '/llms.txt', '/api/v1/openapi.json'],
   });
   await app.register(websocket);
-  await app.register(authPlugin);
+  await authPlugin(app);
 
   app.setErrorHandler((err, _req, reply) => {
     if ((err as { statusCode?: number }).statusCode === 429) {
@@ -135,11 +141,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   app.setNotFoundHandler(async (req, reply) => {
     const url = req.raw.url || '';
-    if (url.startsWith('/api') || url.startsWith('/mcp')) {
+    const pathname = url.split('?')[0] ?? '';
+    if (url.startsWith('/api/') || url.startsWith('/mcp')) {
       reply.status(404).send({ error: { code: 'NOT_FOUND', message: '接口不存在' } });
       return;
     }
-    if (url === '/setup' || url.startsWith('/setup?')) {
+    if (pathname === '/setup' || pathname.startsWith('/setup/')) {
       const state = await isInstalled(app.db, app.config);
       if (state.installed) {
         reply.status(404).type('text/plain').send('Not Found');

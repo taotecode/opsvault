@@ -19,11 +19,16 @@ import {
   verifyKeypair,
 } from '../services/keypairs.js';
 import { actorFromRequest } from '../lib/actor.js';
-import { denyAgent, getAuth, scopeCheck } from '../lib/permissions.js';
+import { denyAgent, getAuth, requireRole, scopeCheck } from '../lib/permissions.js';
 import { parseBody, parseQuery } from '../lib/validate.js';
 import { errors } from '../lib/errors.js';
 import { isRevealWindowActive } from '../services/credentials.js';
 import { writeAudit } from '../lib/audit.js';
+
+function attachmentHeader(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
 
 export async function keypairRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/keypairs', async (req) => {
@@ -39,6 +44,7 @@ export async function keypairRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/v1/keypairs/generate', async (req) => {
     scopeCheck('keypairs:write')(req);
+    denyAgent(req);
     const body = parseBody(keypairGenerateSchema, req.body);
     return {
       data: await generateKeypair(app.db, app.config, body, actorFromRequest(req)),
@@ -47,6 +53,7 @@ export async function keypairRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/v1/keypairs/import', async (req) => {
     scopeCheck('keypairs:write')(req);
+    denyAgent(req);
     const body = parseBody(keypairImportSchema, req.body);
     try {
       return {
@@ -62,6 +69,7 @@ export async function keypairRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete('/api/v1/keypairs/:id', async (req) => {
     scopeCheck('keypairs:write')(req);
+    denyAgent(req);
     const { id } = req.params as { id: string };
     await deleteKeypair(app.db, id, actorFromRequest(req));
     return { data: { ok: true } };
@@ -69,6 +77,7 @@ export async function keypairRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/v1/keypairs/:id/deploy', async (req) => {
     scopeCheck('keypairs:write')(req);
+    denyAgent(req);
     const { id } = req.params as { id: string };
     const body = parseBody(keypairDeploySchema, req.body);
     return {
@@ -78,6 +87,7 @@ export async function keypairRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/v1/keypairs/:id/verify', async (req) => {
     scopeCheck('keypairs:write')(req);
+    denyAgent(req);
     const { id } = req.params as { id: string };
     const body = parseBody(keypairVerifySchema, req.body ?? {});
     return {
@@ -98,13 +108,14 @@ export async function keypairRoutes(app: FastifyInstance): Promise<void> {
     const kp = await getKeypairRow(app.db, id);
     reply
       .type('text/plain; charset=utf-8')
-      .header('content-disposition', `attachment; filename="${kp.name}.pub"`)
+      .header('content-disposition', attachmentHeader(`${kp.name}.pub`))
       .send(kp.public_key);
   });
 
   app.post('/api/v1/keypairs/:id/private-key', async (req, reply) => {
     scopeCheck('keypairs:read')(req);
     denyAgent(req);
+    requireRole(req, ['admin', 'operator']);
     const auth = getAuth(req);
     if (auth.via !== 'session') throw errors.forbidden('私钥导出仅支持登录会话');
     if (!isRevealWindowActive(auth.revealUntil)) {
@@ -128,7 +139,7 @@ export async function keypairRoutes(app: FastifyInstance): Promise<void> {
     });
     reply
       .type('application/x-pem-file')
-      .header('content-disposition', `attachment; filename="${kp.name}.pem"`)
+      .header('content-disposition', attachmentHeader(`${kp.name}.pem`))
       .send(privateKey);
   });
 }

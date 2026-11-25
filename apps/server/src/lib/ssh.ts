@@ -4,6 +4,7 @@ import type { Kysely } from 'kysely';
 import type { AppConfig } from '../config.js';
 import type { DatabaseSchema, HostsTable } from '../db/types.js';
 import { decryptSecret, getMasterKey } from './crypto.js';
+import { writeAudit } from './audit.js';
 import { errors } from './errors.js';
 import { parsePrivateKey } from './sshKeys.js';
 
@@ -20,8 +21,8 @@ interface KeypairPrivateRow {
   private_tag: string | null;
 }
 
-function sha256Hex(data: Buffer | string): string {
-  return crypto.createHash('sha256').update(data).digest('hex');
+function fingerprintOfHostKey(data: Buffer): string {
+  return `SHA256:${crypto.createHash('sha256').update(data).digest('base64').replace(/=+$/, '')}`;
 }
 
 export function decryptKeypairPrivate(
@@ -142,10 +143,9 @@ export function sshConfig(
     port: host.port,
     username: auth.username,
     readyTimeout: 10_000,
-    hostHash: 'sha256',
-    hostVerifier: (hashedKey: Buffer | string) => {
-      observed =
-        typeof hashedKey === 'string' ? hashedKey : sha256Hex(hashedKey);
+    hostVerifier: (key: Buffer | string) => {
+      const raw = typeof key === 'string' ? Buffer.from(key, 'hex') : key;
+      observed = fingerprintOfHostKey(raw);
       if (hostKeyFp && observed !== hostKeyFp) {
         // TOFU：指纹变化拒绝连接
         return false;
@@ -202,6 +202,11 @@ export function execRemote(
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
+      try {
+        client.end();
+      } catch {
+        /* ignore */
+      }
       reject(errors.internal('SSH 命令执行超时'));
     }, timeoutMs);
     client.exec(command, (err, stream) => {
@@ -238,5 +243,14 @@ export async function persistHostFingerprint(
 ): Promise<void> {
   if (!current && observed) {
     await db.updateTable('hosts').set({ host_key_fp: observed }).where('id', '=', hostId).execute();
+    await writeAudit(db, {
+      actorLabel: 'system',
+      actorKind: 'system',
+      action: '固定主机指纹',
+      category: 'asset',
+      targetId: hostId,
+      detail: { fingerprint: observed },
+      success: true,
+    });
   }
 }

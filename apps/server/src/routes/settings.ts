@@ -1,31 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { settingsPatchSchema } from '@boerfen/shared';
-import { requireAdmin, scopeCheck } from '../lib/permissions.js';
+import { denyAgent, requireAdmin, requireSession, scopeCheck } from '../lib/permissions.js';
 import { parseBody } from '../lib/validate.js';
 import { actorFromRequest } from '../lib/actor.js';
 import { writeAudit } from '../lib/audit.js';
-
-export const SETTING_DEFAULTS = {
-  security: {
-    sessionDays: 7,
-    forceTotp: false,
-    revealWindowMinutes: 5,
-    loginLockout: true,
-  },
-  probe: {
-    schedule: 'off',
-    concurrency: 4,
-    timeoutSec: 8,
-    snapshotKeep: 20,
-  },
-  notifications: {
-    expiryDays: 30,
-    webhookUrl: '',
-  },
-  system: {
-    updateChannel: 'github',
-  },
-};
+import { errors } from '../lib/errors.js';
+import { SETTING_DEFAULTS, mergedSettings } from '../services/settings.js';
+import { sendWebhook } from '../services/webhook.js';
 
 const ALLOWED_KEYS = Object.keys(SETTING_DEFAULTS) as Array<keyof typeof SETTING_DEFAULTS>;
 
@@ -43,27 +24,16 @@ function stripUnknown(key: string, value: unknown): unknown {
   return out;
 }
 
-async function mergedSettings(app: FastifyInstance): Promise<Record<string, unknown>> {
-  const rows = await app.db.selectFrom('settings').selectAll().execute();
-  const merged: Record<string, unknown> = JSON.parse(JSON.stringify(SETTING_DEFAULTS));
-  for (const row of rows) {
-    if (!(row.key in merged)) continue;
-    try {
-      merged[row.key] = { ...(merged[row.key] as object), ...(JSON.parse(row.value_json) as object) };
-    } catch {
-      /* ignore corrupt */
-    }
-  }
-  return merged;
-}
-
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/settings', async (req) => {
+    denyAgent(req);
     scopeCheck('settings:read')(req);
-    return { data: await mergedSettings(app) };
+    return { data: await mergedSettings(app.db) };
   });
 
   app.patch('/api/v1/settings', async (req) => {
+    denyAgent(req);
+    requireSession(req);
     requireAdmin(req);
     const patch = parseBody(settingsPatchSchema, req.body);
     const now = new Date().toISOString();
@@ -85,6 +55,17 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       category: 'system',
       detail: { keys: Object.keys(patch) },
     });
-    return { data: await mergedSettings(app) };
+    return { data: await mergedSettings(app.db) };
+  });
+
+  app.post('/api/v1/settings/webhook-test', async (req) => {
+    denyAgent(req);
+    requireSession(req);
+    requireAdmin(req);
+    const settings = await mergedSettings(app.db);
+    const notifications = settings.notifications as Record<string, unknown>;
+    const url = String(notifications.webhookUrl ?? '').trim();
+    if (!url) throw errors.validation(null, '请先保存 Webhook 地址');
+    return { data: await sendWebhook(app.db, 'test', { message: '铂尔分 Webhook 测试消息' }) };
   });
 }

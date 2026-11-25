@@ -15,8 +15,8 @@ import {
 } from '../lib/ssh.js';
 import {
   generateSshKeyPair,
-  parsePrivateKey,
   parsePublicKey,
+  prepareImportedPrivateKey,
 } from '../lib/sshKeys.js';
 import { errors } from '../lib/errors.js';
 import { writeAudit } from '../lib/audit.js';
@@ -135,8 +135,8 @@ export async function generateKeypair(
   config: AppConfig,
   input: { name: string; algorithm: 'Ed25519' | 'RSA-4096' },
   actor: Actor,
-): Promise<KeypairDto> {
-  const generated = generateSshKeyPair(input.algorithm);
+): Promise<KeypairDto & { privateKey: string }> {
+  const generated = await generateSshKeyPair(input.algorithm);
   const now = new Date().toISOString();
   const id = ulid();
   await db
@@ -168,7 +168,7 @@ export async function generateKeypair(
     ip: actor.ip,
     ua: actor.ua,
   });
-  return getKeypairDto(db, id);
+  return { ...(await getKeypairDto(db, id)), privateKey: generated.privateKeyPem };
 }
 
 export async function importKeypair(
@@ -182,7 +182,7 @@ export async function importKeypair(
   let fingerprint: string;
   let privateText: string | null = null;
   if (input.privateKey) {
-    const parsed = parsePrivateKey(input.privateKey, input.passphrase);
+    const parsed = await prepareImportedPrivateKey(input.privateKey, input.passphrase);
     algorithm = parsed.algorithm;
     publicKey = parsed.publicText;
     fingerprint = parsed.fingerprint;
@@ -335,13 +335,21 @@ export async function deployKeypair(
   const cmd = appendKeyCommand(kp.public_key);
   const results: Array<{ hostId: string; hostName: string; ok: boolean; error?: string }> = [];
   for (const hostId of hostIds) {
+    let hostName = hostId;
     try {
       const host = await getHostRow(db, hostId);
+      hostName = host.name;
       const auth = await resolveHostAuth(db, config, host);
       const opened = await openSsh(host, auth, host.host_key_fp);
-      await persistHostFingerprint(db, host.id, host.host_key_fp, opened.fingerprint);
-      await execRemote(opened.client, cmd, 15_000);
-      opened.client.end();
+      try {
+        await persistHostFingerprint(db, host.id, host.host_key_fp, opened.fingerprint);
+        const res = await execRemote(opened.client, cmd, 15_000);
+        if (res.code !== 0) {
+          throw errors.sshConnect(`部署命令失败（退出码 ${res.code ?? 'unknown'}）`);
+        }
+      } finally {
+        opened.client.end();
+      }
       const now = new Date().toISOString();
       await db
         .insertInto('key_deployments')
@@ -374,7 +382,19 @@ export async function deployKeypair(
       });
       results.push({ hostId, hostName: host.name, ok: true });
     } catch (e) {
-      results.push({ hostId, hostName: hostId, ok: false, error: (e as Error).message });
+      await writeAudit(db, {
+        actorId: actor.id,
+        actorLabel: actor.label,
+        actorKind: actor.kind,
+        action: '部署公钥',
+        category: 'key',
+        targetId: hostId,
+        detail: { keypair: kp.name, host: hostName, error: (e as Error).message },
+        ip: actor.ip,
+        ua: actor.ua,
+        success: false,
+      });
+      results.push({ hostId, hostName, ok: false, error: (e as Error).message });
     }
   }
   return results;
@@ -411,9 +431,15 @@ export async function verifyKeypair(
     const host = await getHostRow(db, hostId);
     try {
       const opened = await openSsh(host, { username: host.ssh_user, privateKey, source: 'verify' }, host.host_key_fp);
-      await persistHostFingerprint(db, host.id, host.host_key_fp, opened.fingerprint);
-      await execRemote(opened.client, 'true', 10_000);
-      opened.client.end();
+      try {
+        await persistHostFingerprint(db, host.id, host.host_key_fp, opened.fingerprint);
+        const res = await execRemote(opened.client, 'true', 10_000);
+        if (res.code !== 0) {
+          throw errors.sshAuth(`验证命令失败（退出码 ${res.code ?? 'unknown'}）`);
+        }
+      } finally {
+        opened.client.end();
+      }
       const now = new Date().toISOString();
       await db
         .updateTable('key_deployments')

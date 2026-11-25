@@ -1,5 +1,12 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import ssh2 from 'ssh2';
+
+const execFileAsync = promisify(execFile);
 
 export interface SshPublicKeyInfo {
   publicText: string;
@@ -11,27 +18,6 @@ export interface SshPublicKeyInfo {
 
 export interface SshPrivateKeyInfo extends SshPublicKeyInfo {
   privateText: string;
-}
-
-function uint32(n: number): Buffer {
-  const b = Buffer.alloc(4);
-  b.writeUInt32BE(n, 0);
-  return b;
-}
-
-function sshString(buf: Buffer): Buffer {
-  return Buffer.concat([uint32(buf.length), buf]);
-}
-
-function mpint(buf: Buffer): Buffer {
-  let b = buf;
-  if (b.length === 0) return Buffer.concat([uint32(0), Buffer.alloc(0)]);
-  if (b[0]! & 0x80) b = Buffer.concat([Buffer.from([0]), b]);
-  return Buffer.concat([uint32(b.length), b]);
-}
-
-function fromBase64url(s: string): Buffer {
-  return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 }
 
 export function fingerprintOfBlob(blob: Buffer): string {
@@ -99,38 +85,109 @@ export function parsePrivateKey(text: string, passphrase?: string): SshPrivateKe
   };
 }
 
-export function generateSshKeyPair(algorithm: 'Ed25519' | 'RSA-4096'): {
+export async function generateSshKeyPair(algorithm: 'Ed25519' | 'RSA-4096'): Promise<{
   privateKeyPem: string;
   publicKeyText: string;
   fingerprint: string;
   algorithm: 'Ed25519' | 'RSA-4096';
-} {
-  let privateKeyPem: string;
-  let publicKeyText: string;
-  if (algorithm === 'Ed25519') {
-    const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519');
-    privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
-    const jwk = publicKey.export({ format: 'jwk' }) as { x?: string };
-    if (!jwk.x) throw new Error('ed25519 export failed');
-    const raw = fromBase64url(jwk.x);
-    const blob = Buffer.concat([sshString(Buffer.from('ssh-ed25519')), sshString(raw)]);
-    publicKeyText = publicKeyTextFromBlob('ssh-ed25519', blob);
-  } else {
-    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 4096 });
-    privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
-    const jwk = publicKey.export({ format: 'jwk' }) as { n?: string; e?: string };
-    if (!jwk.n || !jwk.e) throw new Error('rsa export failed');
-    const e = mpint(fromBase64url(jwk.e));
-    const n = mpint(fromBase64url(jwk.n));
-    const blob = Buffer.concat([sshString(Buffer.from('ssh-rsa')), e, n]);
-    publicKeyText = publicKeyTextFromBlob('ssh-rsa', blob);
+}> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-key-'));
+  const keyPath = path.join(dir, 'id_key');
+  try {
+    const args = [
+      '-t',
+      algorithm === 'Ed25519' ? 'ed25519' : 'rsa',
+      ...(algorithm === 'RSA-4096' ? ['-b', '4096'] : []),
+      '-N',
+      '',
+      '-C',
+      'boerfen-assets',
+      '-f',
+      keyPath,
+    ];
+    try {
+      await execFileAsync('ssh-keygen', args, { timeout: 20_000 });
+    } catch (e) {
+      const message = (e as NodeJS.ErrnoException).code === 'ENOENT'
+        ? '系统缺少 ssh-keygen（请安装 openssh-client）'
+        : (e as Error).message;
+      throw new Error(`密钥生成失败：${message}`, { cause: e });
+    }
+    const privateKeyPem = fs.readFileSync(keyPath, 'utf8');
+    const publicKeyText = fs.readFileSync(`${keyPath}.pub`, 'utf8').trim();
+    const parsed = parsePublicKey(publicKeyText);
+    return {
+      privateKeyPem,
+      publicKeyText,
+      fingerprint: parsed.fingerprint,
+      algorithm,
+    };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
-  const parsed = parsePublicKey(publicKeyText);
+}
+
+/**
+ * 规范化用户上传的私钥：
+ * - 支持 OpenSSH 私钥与 RSA PKCS#1；Ed25519 PKCS#8 不受 ssh2 支持，将给出明确提示。
+ * - 若带口令，使用 ssh-keygen 去除口令，保存解密后的 OpenSSH 私钥（平台会再次加密存储）。
+ */
+export async function prepareImportedPrivateKey(
+  text: string,
+  passphrase?: string,
+): Promise<SshPrivateKeyInfo> {
+  const trimmed = text.trim();
+  let parsed = ssh2.utils.parseKey(trimmed, passphrase || undefined) as unknown;
+  if (parsed instanceof Error) {
+    throw new Error(
+      parsed.message.includes('Unsupported key format')
+        ? '无法解析该私钥格式；请使用 ssh-keygen 生成的 OpenSSH 私钥（Ed25519 请勿使用 PKCS#8）'
+        : parsed.message,
+    );
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-import-'));
+  const keyPath = path.join(dir, 'id_key');
+  try {
+    const hasPassphrase = !!passphrase;
+    if (hasPassphrase) {
+      fs.writeFileSync(keyPath, trimmed.endsWith('\n') ? trimmed : trimmed + '\n', { mode: 0o600 });
+      try {
+        await execFileAsync('ssh-keygen', ['-p', '-P', passphrase, '-N', '', '-f', keyPath], {
+          timeout: 10_000,
+        });
+      } catch (e) {
+        throw new Error('口令不正确或私钥无法解密', { cause: e });
+      }
+      const decrypted = fs.readFileSync(keyPath, 'utf8');
+      parsed = ssh2.utils.parseKey(decrypted) as unknown;
+      if (parsed instanceof Error) throw new Error(parsed.message);
+      return finishParsed(decrypted, parsed);
+    }
+    return finishParsed(trimmed.endsWith('\n') ? trimmed : trimmed + '\n', parsed);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function finishParsed(text: string, parsed: unknown): SshPrivateKeyInfo {
+  if (Array.isArray(parsed) && parsed.length > 1) throw new Error('multiple keys are not supported');
+  const key = (Array.isArray(parsed) ? parsed[0] : parsed) as {
+    type?: string;
+    getPublicSSH?: () => Buffer;
+    isPrivateKey?: () => boolean;
+  };
+  if (key.isPrivateKey && !key.isPrivateKey()) throw new Error('not a private key');
+  const blob = key.getPublicSSH?.();
+  if (!blob) throw new Error('private key parse failed');
+  const type = key.type || 'ssh-ed25519';
+  const algorithm = algorithmFor(type);
   return {
-    privateKeyPem,
-    publicKeyText,
-    fingerprint: parsed.fingerprint,
+    privateText: text,
+    publicText: publicKeyTextFromBlob(type, blob),
+    blob,
+    fingerprint: fingerprintOfBlob(blob),
     algorithm,
+    type,
   };
 }
 
