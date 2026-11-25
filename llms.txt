@@ -5,8 +5,9 @@
 ## 认证
 - 浏览器：登录成功后使用 `bf_session` Cookie；写操作需带 `x-csrf-token`（值见 `bf_csrf` Cookie）。
 - Agent/脚本：`Authorization: Bearer wfv_…`。Agent 令牌默认只读，写 scope 需显式授予：
-  hosts:read / hosts:write / credentials:read / keypairs:read / keypairs:write / audit:read。
+  hosts:read / hosts:write / credentials:read / keypairs:read / audit:read / system:read（Agent 不支持 keypairs:write 与 credentials:write）。
 - 严禁操作：`POST /credentials/{id}/reveal`、`POST /keypairs/{id}/private-key`、Web 终端——Agent 调用一律 403。
+- 所有 Agent 调用（含读取）都会写审计（actor_kind=agent）。
 
 ## 常用端点
 - `GET /hosts?env=prod&status=online&fields=id,name,status,expiresAt` — 资产列表（cursor 分页）
@@ -16,7 +17,7 @@
 - `GET /keypairs` — 密钥列表（含部署/验证状态，不含私钥）
 - `GET /keypairs/{id}/connect-command?hostId=…` — ssh/scp 命令（不含密钥内容）
 - `GET /audit?category=auth&limit=20` — 审计日志（audit:read）
-- `GET /meta` — 能力发现；`GET /system/version` — 版本与数据库
+- `GET /meta` — 能力发现；`GET /system/version` — 版本与数据库（system:read）
 - `GET /system/updates` — 更新检查（管理员）
 
 ## 响应约定
@@ -26,14 +27,15 @@
 
 ## MCP（Streamable HTTP）
 - 端点：`POST /mcp`，Authorization 同上。
-- 工具（≥10）：`hosts_list` `host_get` `hosts_search` `hosts_create` `hosts_update` `host_probe`
+- 工具（11 个）：`hosts_list` `host_get` `hosts_search` `hosts_create` `hosts_update` `host_probe`
   `credentials_list_meta` `keypairs_list` `keypairs_connect_command` `audit_list` `system_version`
 - 写工具需 `hosts:write`；敏感操作不提供。
+- `hosts_list` 支持 `q/env/status/limit/fields`；`hosts_create` 不允许绑定凭据/密钥对。
 
 ## 官方 Skill
 - `skills/boerfen-assets/SKILL.md` + `scripts/api.sh`
 - 环境变量：`BOERFEN_BASE_URL`、`BOERFEN_API_TOKEN`
-- 常用：`api.sh hosts list --env prod`、`api.sh hosts get <id>`、`api.sh hosts probe <id>`、`api.sh keys list`
+- 常用：`api.sh hosts list --env prod`、`api.sh hosts get <id>`、`api.sh hosts create <json>`、`api.sh hosts update <id> <json>`、`api.sh hosts probe <id>`、`api.sh keys list`
 
 ## 安装与升级（状态可读，执行需人类）
 - `GET /setup/status`：installed/locked/version（公开、最小信息）。

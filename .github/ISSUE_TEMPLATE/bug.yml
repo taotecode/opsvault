@@ -1,0 +1,61 @@
+name: Bug report
+description: 报告一个缺陷
+title: '[bug]: '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请勿在公开 Issue 中粘贴真实凭据、私钥或未修复的安全漏洞细节（安全漏洞请走 SECURITY.md 的私密披露渠道）。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 页面底部或 `pnpm cli version`
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: 部署形态
+      options:
+        - Docker
+        - 裸机 Node.js
+        - 开发模式
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: 数据库
+      options:
+        - SQLite
+        - PostgreSQL
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: 1. … 2. … 3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 可附日志（请先脱敏）
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境信息
+      placeholder: OS、浏览器、Node、Docker 版本等
