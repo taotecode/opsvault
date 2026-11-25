@@ -274,14 +274,19 @@ export async function patchHost(
   }
   await db.transaction().execute(async (trx) => {
     await trx.updateTable('hosts').set(updates as never).where('id', '=', id).execute();
-    if (patch.credentialId === null) {
-      await trx.deleteFrom('host_credentials').where('host_id', '=', id).execute();
-    } else if (patch.credentialId) {
+    if (patch.credentialId !== undefined) {
       await trx
-        .insertInto('host_credentials')
-        .values({ host_id: id, credential_id: patch.credentialId, role: 'primary' })
-        .onConflict((oc) => oc.doNothing())
+        .deleteFrom('host_credentials')
+        .where('host_id', '=', id)
+        .where('role', '=', 'primary')
         .execute();
+      if (patch.credentialId) {
+        await trx
+          .insertInto('host_credentials')
+          .values({ host_id: id, credential_id: patch.credentialId, role: 'primary' })
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+      }
     }
   });
   await writeAudit(db, {

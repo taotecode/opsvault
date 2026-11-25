@@ -12,7 +12,9 @@ export async function terminalRoutes(app: FastifyInstance): Promise<void> {
       const origin = req.headers.origin;
       if (origin) {
         const expected = new URL(app.config.baseUrl).origin;
-        if (origin !== expected) throw errors.forbidden('WebSocket Origin 不匹配');
+        const hostHeader = req.headers.host;
+        const hostOrigin = hostHeader ? `${req.protocol}://${hostHeader}` : null;
+        if (origin !== expected && origin !== hostOrigin) throw errors.forbidden('WebSocket Origin 不匹配');
       }
       const auth = getAuth(req);
       denyAgent(req);

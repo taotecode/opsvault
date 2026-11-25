@@ -28,7 +28,13 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/settings', async (req) => {
     denyAgent(req);
     scopeCheck('settings:read')(req);
-    return { data: await mergedSettings(app.db) };
+    const data = await mergedSettings(app.db);
+    const auth = req.auth;
+    if (auth?.user.role !== 'admin') {
+      const notifications = data.notifications as Record<string, unknown>;
+      notifications.webhookUrl = '';
+    }
+    return { data };
   });
 
   app.patch('/api/v1/settings', async (req) => {

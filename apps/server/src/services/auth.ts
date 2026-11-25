@@ -20,6 +20,7 @@ import { writeAudit } from '../lib/audit.js';
 import type { Actor } from '../lib/actor.js';
 import type { RequestAuth } from '../lib/permissions.js';
 import { securitySettings } from './settings.js';
+import { sendWebhook } from './webhook.js';
 
 const loginFailures = new Map<string, { fails: number; firstAt: number; lockedUntil: number }>();
 const LOCKOUT_WINDOW_MS = 15 * 60_000;
@@ -32,6 +33,9 @@ function isLocked(entry: { lockedUntil: number } | undefined): boolean {
 
 function recordLoginFailure(key: string): void {
   const now = Date.now();
+  for (const [k, v] of loginFailures) {
+    if (now - v.firstAt > LOCKOUT_WINDOW_MS && v.lockedUntil <= now) loginFailures.delete(k);
+  }
   const entry = loginFailures.get(key);
   if (!entry || now - entry.firstAt > LOCKOUT_WINDOW_MS) {
     loginFailures.set(key, { fails: 1, firstAt: now, lockedUntil: 0 });
@@ -72,7 +76,7 @@ export async function login(
   meta: { ip: string | null; ua: string | null },
 ): Promise<LoginResult> {
   const sec = await securitySettings(db);
-  const lockKey = input.email.trim().toLowerCase();
+  const lockKey = `${meta.ip ?? 'unknown'}:${input.email.trim().toLowerCase()}`;
   if (sec.loginLockout && isLocked(loginFailures.get(lockKey))) {
     await writeAudit(db, {
       actorId: null,
@@ -85,6 +89,7 @@ export async function login(
       ua: meta.ua,
       success: false,
     });
+    void sendWebhook(db, 'auth.locked', { email: input.email, ip: meta.ip }).catch(() => undefined);
     throw errors.rateLimited();
   }
   const user = await findUserByEmail(db, input.email);
@@ -101,6 +106,7 @@ export async function login(
       ua: meta.ua,
       success: false,
     });
+    void sendWebhook(db, 'auth.login_failed', { email: input.email, reason, ip: meta.ip }).catch(() => undefined);
     throw errors.unauthorized('邮箱或密码不正确');
   };
   if (!user) return fail('user_not_found');
@@ -232,7 +238,7 @@ export async function beginTotpSetup(
   if (auth.via !== 'session') throw errors.forbidden('仅登录会话可绑定 TOTP');
   const user = await findUserById(db, auth.user.id);
   if (!user) throw errors.unauthorized();
-  if (user.totp_enabled) requireReveal(auth);
+  if (user.totp_enabled) throw errors.conflict('TOTP 已启用；如需更换设备请先停用并完成二次验证');
   const secret = generateTotpSecret();
   const envelope = JSON.stringify(encryptSecret(secret, getMasterKey(config)));
   await db
@@ -306,6 +312,8 @@ export async function changePassword(
       .where('user_id', '=', user.id)
       .where('id', '!=', auth.sessionId)
       .execute();
+  } else {
+    await db.deleteFrom('sessions').where('user_id', '=', user.id).execute();
   }
   await db.deleteFrom('api_tokens').where('user_id', '=', user.id).execute();
   await writeAudit(db, {

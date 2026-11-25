@@ -232,7 +232,7 @@ export function SettingsPage() {
           <Row title="到期提醒" desc="提前多少天在仪表盘提示">
             <Pick value={String(form.notifications.expiryDays)} onChange={(v) => setForm({ ...form, notifications: { ...form.notifications, expiryDays: Number(v) } })} options={[['7', '7 天'], ['14', '14 天'], ['30', '30 天']]} />
           </Row>
-          <Row title="Webhook" desc="到期、探测失败与登录异常推送">
+          <Row title="Webhook" desc="探测失败与登录失败/锁定推送">
             <div className="w-[240px]"><Input placeholder="https://hooks.example.com/…" value={form.notifications.webhookUrl} disabled={!isAdmin} onChange={(e) => setForm({ ...form, notifications: { ...form.notifications, webhookUrl: e.target.value } })} /></div>
           </Row>
           <Row title="测试发送" desc="向 Webhook 发送一条测试消息">
