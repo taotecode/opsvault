@@ -33,6 +33,21 @@ async function csrf(context: import('@playwright/test').BrowserContext): Promise
 }
 
 test.describe.configure({ mode: 'serial' });
+test('setup wizard verifies token then shows database step', async ({ page }) => {
+  const token = fs.readFileSync(setupTokenPath(), 'utf8').trim();
+  await page.goto('/setup');
+  await expect(page.getByText('安装向导').first()).toBeVisible();
+  const next = page.getByRole('button', { name: '下一步' });
+  await expect(next).toBeDisabled();
+  await page.getByLabel('Setup Token').fill(token);
+  await expect(next).toBeEnabled();
+  await next.click();
+  await expect(page.getByText('SQLite', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: '测试连接' })).toBeVisible();
+  await expect(page.getByText('管理员邮箱')).toBeHidden();
+  await next.click();
+  await expect(page.getByText('管理员邮箱')).toBeVisible();
+});
 
 test('setup, login, asset management and terminal smoke', async ({ page, request }) => {
   completeSetup(request);

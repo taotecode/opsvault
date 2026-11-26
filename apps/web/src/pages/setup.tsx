@@ -52,7 +52,7 @@ export function SetupPage() {
         headers: { 'x-setup-token': token },
         body: JSON.stringify({}),
       });
-      setStep(2);
+      setStep(1);
       toast.success('Setup Token 校验通过');
     } catch (e) {
       toast.error((e as Error).message, { description: (e as ApiError).hint });
@@ -148,8 +148,8 @@ export function SetupPage() {
                   首次部署需要输入服务端控制台打印的一次性 <b>Setup Token</b>，防止安装入口被他人抢先初始化。
                 </Callout>
                 <div>
-                  <label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">Setup Token</label>
-                  <Input value={token} onChange={(e) => setToken(e.target.value)} placeholder="例如 6F2AFF97-967410D8" />
+                  <label htmlFor="setup-token" className="mb-1 block text-[11.5px] text-[var(--ink-3)]">Setup Token</label>
+                  <Input id="setup-token" value={token} onChange={(e) => setToken(e.target.value)} placeholder="例如 6F2AFF97-967410D8" />
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {[
@@ -208,10 +208,10 @@ export function SetupPage() {
             ) : step === 2 ? (
               <div className="space-y-4">
                 <Callout><Lock size={14} /> 管理员账号只在首次安装时创建；密码使用 Argon2id 哈希存储。</Callout>
-                <div><label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">管理员邮箱</label><Input value={admin.email} onChange={(e) => setAdmin({ ...admin, email: e.target.value })} placeholder="admin@example.com" /></div>
+                <div><label htmlFor="admin-email" className="mb-1 block text-[11.5px] text-[var(--ink-3)]">管理员邮箱</label><Input id="admin-email" value={admin.email} onChange={(e) => setAdmin({ ...admin, email: e.target.value })} placeholder="admin@example.com" /></div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div><label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">密码（≥ 8 位）</label><Input type="password" value={admin.password} onChange={(e) => setAdmin({ ...admin, password: e.target.value })} /></div>
-                  <div><label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">确认密码</label><Input type="password" value={admin.confirm} onChange={(e) => setAdmin({ ...admin, confirm: e.target.value })} /></div>
+                  <div><label htmlFor="admin-password" className="mb-1 block text-[11.5px] text-[var(--ink-3)]">密码（≥ 8 位）</label><Input id="admin-password" type="password" value={admin.password} onChange={(e) => setAdmin({ ...admin, password: e.target.value })} /></div>
+                  <div><label htmlFor="admin-confirm" className="mb-1 block text-[11.5px] text-[var(--ink-3)]">确认密码</label><Input id="admin-confirm" type="password" value={admin.confirm} onChange={(e) => setAdmin({ ...admin, confirm: e.target.value })} /></div>
                 </div>
                 <div className="flex justify-between">
                   <Button onClick={() => setStep(1)}>上一步</Button>
