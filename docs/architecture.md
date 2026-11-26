@@ -59,7 +59,7 @@
 - `components/ui`：shadcn/ui + Radix 原子（Button/Input/Modal/Tabs/Switch/Select/Checkbox）。
 - `components/common`：GlassPanel、PageHeader、StatBand、FleetStrip、LoadMeters、DataTable、StatusBadge、Secret/Reauth 对话框等。
 - `pages`：仅编排查询、状态与布局；页面 ≤ ~300 行。
-- 视觉：iOS 液态玻璃（半透明面板 + 极光背景 + 镜面高光），明暗主题，移动端响应式；登录/安装页使用 `liquid-glass-react`，应用内面板使用 CSS 玻璃层（可平滑回退）。
+- 视觉：iOS 液态玻璃（半透明面板 + 极光背景 + 镜面高光），明暗主题，移动端响应式；全部面板统一使用 CSS 玻璃层。
 
 ### Agent 接入
 

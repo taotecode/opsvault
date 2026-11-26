@@ -43,7 +43,7 @@
 ## D7 UI：公开组件 + 液态玻璃
 
 - shadcn/ui（Radix）+ TanStack + cmdk + Sonner + next-themes + lucide + zxcvbn-ts；不自造基础组件。
-- 玻璃视觉以 CSS 玻璃层为主（登录/安装页使用 `liquid-glass-react`），确保在大量面板下性能可控，并可在库不可用时回退纯 CSS。
+- 玻璃视觉全部用 CSS 玻璃层（背景模糊 + 半透明描边），不引入第三方玻璃组件库：`liquid-glass-react` 的绝对定位与 transform 在登录页会把布局挤坏，已移除。
 
 ## D8 探测：固定脚本 + 分段解析
 
