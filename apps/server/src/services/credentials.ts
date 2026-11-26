@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import { ulid } from 'ulid';
 import type { AppConfig } from '../config.js';
 import type { DatabaseSchema, CredentialsTable } from '../db/types.js';
-import type { CredentialCreateInput } from '@boerfen/shared';
+import type { CredentialCreateInput } from '@opsvault/shared';
 import { encryptSecret, getMasterKey, passwordStrength } from '../lib/crypto.js';
 import { decryptCredentialValue } from '../lib/ssh.js';
 import { parsePrivateKey } from '../lib/sshKeys.js';

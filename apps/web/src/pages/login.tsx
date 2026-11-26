@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
-import { APP_VERSION, loginSchema } from '@boerfen/shared';
+import { APP_VERSION, loginSchema } from '@opsvault/shared';
 import { toast } from 'sonner';
 import { ArrowRight } from 'lucide-react';
 import LiquidGlass from 'liquid-glass-react';
@@ -54,11 +54,11 @@ export function LoginPage() {
       <div className="relative z-10 grid min-h-screen place-items-center p-6">
         <div className="w-full max-w-[430px]">
           <div className="mb-5 flex items-center justify-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[var(--brand-strong)] to-[var(--brand)] text-lg font-bold text-[#241504] shadow-lg">
-              铂
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[var(--brand-strong)] to-[var(--brand)] text-base font-bold tracking-wide text-[#241504] shadow-lg">
+              OV
             </div>
             <div>
-              <div className="text-[18px] font-semibold tracking-wide">铂尔分</div>
+              <div className="text-[18px] font-semibold tracking-wide">OpsVault</div>
               <div className="text-[11px] text-[var(--ink-3)]">服务器资产管理平台</div>
             </div>
           </div>
@@ -95,7 +95,7 @@ export function LoginPage() {
                 </div>
               ) : null}
               <div className="mt-4 text-center text-[11px] text-[var(--ink-3)]">
-                铂尔分 · MIT 开源 · v{setup.data?.version ?? APP_VERSION}
+                OpsVault · MIT 开源 · v{setup.data?.version ?? APP_VERSION}
               </div>
             </div>
           </LiquidGlass>

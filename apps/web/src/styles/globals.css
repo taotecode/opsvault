@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ================= 铂尔分 · Liquid Glass 设计令牌 ================= */
+/* ================= OpsVault · Liquid Glass 设计令牌 ================= */
 :root {
   --bg: #e9eef7;
   --bg-side: rgba(255, 255, 255, 0.55);

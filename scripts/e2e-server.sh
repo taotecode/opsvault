@@ -9,7 +9,7 @@ rm -rf "$DATA_DIR"
 mkdir -p "$DATA_DIR"
 
 if [[ ! -f "$ROOT/apps/web/dist/index.html" ]]; then
-  echo "需要先构建前端：pnpm --filter @boerfen/web build" >&2
+  echo "需要先构建前端：pnpm --filter @opsvault/web build" >&2
   exit 1
 fi
 

@@ -3,7 +3,7 @@ import { initReactI18next } from 'react-i18next';
 
 const zh = {
   translation: {
-    appName: '铂尔分',
+    appName: 'OpsVault',
     appSub: '服务器资产管理平台',
     nav: {
       dashboard: '仪表盘',
@@ -41,7 +41,7 @@ const zh = {
 
 const en = {
   translation: {
-    appName: 'Boerfen',
+    appName: 'OpsVault',
     appSub: 'Server Asset Platform',
     nav: {
       dashboard: 'Dashboard',
@@ -79,7 +79,7 @@ const en = {
 
 void i18n.use(initReactI18next).init({
   resources: { zh, en },
-  lng: localStorage.getItem('boerfen-lang') || 'zh',
+  lng: localStorage.getItem('opsvault-lang') || 'zh',
   fallbackLng: 'zh',
   interpolation: { escapeValue: false },
 });

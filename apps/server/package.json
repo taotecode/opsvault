@@ -1,5 +1,5 @@
 {
-  "name": "@boerfen/server",
+  "name": "@opsvault/server",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -17,7 +17,7 @@
     "test:pg": "vitest run tests/api.test.ts"
   },
   "dependencies": {
-    "@boerfen/shared": "workspace:*",
+    "@opsvault/shared": "workspace:*",
     "@fastify/cookie": "^11.1.5",
     "@fastify/csrf-protection": "^8.0.2",
     "@fastify/helmet": "^13.2.0",

@@ -27,7 +27,7 @@ const SCOPE_LABELS: Record<string, string> = {
   'system:read': '读取版本与安装状态',
   'settings:read': '读取全局设置',
 };
-const SKILL_CMD = 'cp -r skills/boerfen-assets ~/.claude/skills/';
+const SKILL_CMD = 'cp -r skills/opsvault ~/.claude/skills/';
 
 function formatTime(value: string | null): string {
   if (!value) return '从未使用';
@@ -143,7 +143,7 @@ export function ApiPage() {
               { icon: Braces, title: 'REST API', tags: ['/api/v1', 'OpenAPI 3.1'], desc: '稳定 operationId 与示例，x-safety 标注敏感级别；/api/docs 人类可读，/openapi.json 机器可读。', action: <Button size="sm" onClick={() => window.open('/api/docs', '_blank')}>文档</Button> },
               { icon: FileText, title: 'llms.txt', tags: ['LLM 阅读指南'], desc: '纯文本说明认证、端点与使用禁忌，让大模型一次读懂平台。', action: <Button size="sm" onClick={() => window.open('/llms.txt', '_blank')}>查看</Button> },
               { icon: Bot, title: 'MCP Server', tags: ['Streamable HTTP'], desc: 'POST /mcp · 11 个工具，Claude Desktop / Claude Code 可直接挂载。', action: <CopyButton text={`${window.location.origin}/mcp`} label="地址" /> },
-              { icon: TerminalSquare, title: '官方 Skill', tags: ['skills/boerfen-assets'], desc: '教 Agent 何时用、怎么调、如何安全操作；含 scripts/api.sh curl 封装。', action: <CopyButton text={SKILL_CMD} label="安装" /> },
+              { icon: TerminalSquare, title: '官方 Skill', tags: ['skills/opsvault'], desc: '教 Agent 何时用、怎么调、如何安全操作；含 scripts/api.sh curl 封装。', action: <CopyButton text={SKILL_CMD} label="安装" /> },
             ].map(({ icon: Icon, title, tags, desc, action }) => (
               <div key={title} className="flex items-start gap-3 px-4 py-3">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--line-strong)] bg-[var(--panel-2)] text-[var(--brand-ink)]">

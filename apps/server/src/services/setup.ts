@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ulid } from 'ulid';
 import type { Kysely } from 'kysely';
-import { APP_VERSION, setupAdminSchema } from '@boerfen/shared';
+import { APP_VERSION, setupAdminSchema } from '@opsvault/shared';
 import type { AppConfig, DbConfig } from '../config.js';
 import type { DatabaseSchema } from '../db/types.js';
 import { createDatabase, migrateToLatest, testDatabase } from '../db/database.js';
@@ -74,7 +74,7 @@ function resolveSetupDatabase(config: AppConfig, input: {
   password?: string;
 }): DbConfig {
   if (input.driver === 'sqlite') {
-    const raw = input.path || 'data/boerfen.db';
+    const raw = input.path || 'data/opsvault.db';
     const resolved = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(config.dataDir, raw.replace(/^data\//, ''));
     if (!resolved.startsWith(config.dataDir + path.sep)) {
       throw errors.validation(resolved, 'SQLite 数据文件必须位于 data 目录内');
@@ -82,7 +82,7 @@ function resolveSetupDatabase(config: AppConfig, input: {
     return { driver: 'sqlite', path: resolved };
   }
   const password = input.password ? `:${encodeURIComponent(input.password)}` : '';
-  const connectionString = `postgres://${encodeURIComponent(input.user || 'boerfen')}${password}@${input.host}:${input.port || 5432}/${input.database}`;
+  const connectionString = `postgres://${encodeURIComponent(input.user || 'opsvault')}${password}@${input.host}:${input.port || 5432}/${input.database}`;
   return { driver: 'postgres', connectionString };
 }
 

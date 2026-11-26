@@ -4,7 +4,7 @@ import {
   loginSchema,
   revealSchema,
   totpEnableSchema,
-} from '@boerfen/shared';
+} from '@opsvault/shared';
 import {
   beginTotpSetup,
   changePassword,
@@ -25,14 +25,14 @@ import type { AppConfig } from '../config.js';
 function setAuthCookies(reply: FastifyReply, config: AppConfig, result: LoginResult): void {
   const secure = config.baseUrl.startsWith('https');
   const maxAge = Math.round(config.sessionDays * 24 * 3600);
-  reply.setCookie('bf_session', result.sessionToken, {
+  reply.setCookie('ov_session', result.sessionToken, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
     secure,
     maxAge,
   });
-  reply.setCookie('bf_csrf', result.csrfToken, {
+  reply.setCookie('ov_csrf', result.csrfToken, {
     path: '/',
     httpOnly: false,
     sameSite: 'lax',
@@ -57,8 +57,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/v1/auth/logout', async (req, reply) => {
     const auth = getAuth(req);
     await logout(app.db, auth, actorFromRequest(req));
-    reply.clearCookie('bf_session', { path: '/' });
-    reply.clearCookie('bf_csrf', { path: '/' });
+    reply.clearCookie('ov_session', { path: '/' });
+    reply.clearCookie('ov_csrf', { path: '/' });
     return { data: { ok: true } };
   });
 

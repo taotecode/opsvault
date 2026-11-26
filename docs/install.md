@@ -8,7 +8,7 @@
 2. 访问 `/setup`，输入 Token；
 3. 依次完成：
    - **环境检查**（Node ≥ 22、data 目录可写、端口、时区）
-   - **数据库配置**：SQLite（默认 `data/boerfen.db`）或 PostgreSQL（主机/端口/库名/用户/密码，支持连接测试）
+   - **数据库配置**：SQLite（默认 `data/opsvault.db`）或 PostgreSQL（主机/端口/库名/用户/密码，支持连接测试）
    - **管理员账号**（邮箱 + ≥8 位密码，可后续在设置中启用 TOTP）
    - **完成**：写入 `data/install.lock` 与 `data/runtime-config.json`（记录所选数据库），删除 Setup Token
 

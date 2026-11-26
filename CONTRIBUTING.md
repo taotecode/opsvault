@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢参与铂尔分（Boerfen Assets）。
+感谢参与 OpsVault。
 
 ## 开发环境
 
@@ -10,7 +10,7 @@
 
 ```bash
 pnpm install
-pnpm --filter @boerfen/shared build
+pnpm --filter @opsvault/shared build
 pnpm dev            # server:8080 + web:5173
 pnpm -r typecheck
 pnpm -r lint
@@ -21,7 +21,7 @@ PostgreSQL 测试：
 
 ```bash
 docker compose --profile pg up -d --wait pg
-TEST_POSTGRES_URL=postgres://boerfen:boerfen@127.0.0.1:5432/boerfen_test pnpm -r test
+TEST_POSTGRES_URL=postgres://opsvault:opsvault@127.0.0.1:5432/opsvault_test pnpm -r test
 ```
 
 ## 提交规范

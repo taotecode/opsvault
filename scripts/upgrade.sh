@@ -2,8 +2,8 @@
 set -euo pipefail
 
 REPO="${GITHUB_REPO:-}"
-BASE_DIR="${BOERFEN_BASE_DIR:-/opt/boerfen}"
-RESTART_CMD="${BOERFEN_RESTART_CMD:-}"
+BASE_DIR="${OPSVAULT_BASE_DIR:-/opt/opsvault}"
+RESTART_CMD="${OPSVAULT_RESTART_CMD:-}"
 VERSION=""
 DRY_RUN=false
 ARTIFACT=""
@@ -20,12 +20,12 @@ usage() {
   --checksum <sha256>  直接提供归档 SHA256
   --checksum-file <p>  SHA256SUMS 文件路径
   --repo owner/name    GitHub 仓库（默认读 GITHUB_REPO）
-  --dir <path>         部署根目录（默认 /opt/boerfen）
-  --restart-cmd <cmd>  升级后重启命令（默认 BOERFEN_RESTART_CMD）
+  --dir <path>         部署根目录（默认 /opt/opsvault）
+  --restart-cmd <cmd>  升级后重启命令（默认 OPSVAULT_RESTART_CMD）
 
 示例：
   upgrade.sh --version v0.2.0 --dry-run
-  upgrade.sh --version v0.2.0 --restart-cmd 'systemctl restart boerfen'
+  upgrade.sh --version v0.2.0 --restart-cmd 'systemctl restart opsvault'
 EOF
 }
 
@@ -56,11 +56,11 @@ if [[ -n "$ARTIFACT" ]]; then
   ARCHIVE="$ARTIFACT"
 else
   if [[ -z "$REPO" ]]; then
-    echo "需要 --repo 或 GITHUB_REPO（例如 owner/boerfen-assets）" >&2
+    echo "需要 --repo 或 GITHUB_REPO（例如 owner/opsvault）" >&2
     exit 2
   fi
-  ARCHIVE="$TMPDIR/boerfen-assets-$VERSION.tar.gz"
-  URL="https://github.com/$REPO/releases/download/v$VERSION/boerfen-assets-$VERSION.tar.gz"
+  ARCHIVE="$TMPDIR/opsvault-$VERSION.tar.gz"
+  URL="https://github.com/$REPO/releases/download/v$VERSION/opsvault-$VERSION.tar.gz"
   echo "下载 $URL"
   curl -fL --retry 3 -o "$ARCHIVE" "$URL"
 fi
@@ -128,9 +128,9 @@ if [[ -f "$NEW_DIR/package.json" ]]; then
     if [[ ! -f "$NEW_DIR/apps/server/dist/main.js" ]]; then
       echo "归档不含构建产物，安装全部依赖并构建…"
       (cd "$NEW_DIR" && pnpm install --frozen-lockfile && \
-        pnpm --filter @boerfen/shared build && \
-        pnpm --filter @boerfen/server build && \
-        pnpm --filter @boerfen/web build) || {
+        pnpm --filter @opsvault/shared build && \
+        pnpm --filter @opsvault/server build && \
+        pnpm --filter @opsvault/web build) || {
         echo "依赖安装或构建失败，回滚" >&2
         rm -rf "$NEW_DIR"
         exit 1

@@ -1,10 +1,10 @@
-# 铂尔分服务器资产管理平台 · llms.txt
+# OpsVault 服务器资产管理平台 · llms.txt
 > 供大语言模型与 Agent 阅读的接入指南。Base URL: http://localhost:8080/api/v1
 > 详细规范：/api/v1/openapi.json（OpenAPI 3.1，稳定 operationId 与 x-safety 标注）
 
 ## 认证
-- 浏览器：登录成功后使用 `bf_session` Cookie；写操作需带 `x-csrf-token`（值见 `bf_csrf` Cookie）。
-- Agent/脚本：`Authorization: Bearer wfv_…`。Agent 令牌默认只读，写 scope 需显式授予：
+- 浏览器：登录成功后使用 `ov_session` Cookie；写操作需带 `x-csrf-token`（值见 `ov_csrf` Cookie）。
+- Agent/脚本：`Authorization: Bearer ovt_…`。Agent 令牌默认只读，写 scope 需显式授予：
   hosts:read / hosts:write / credentials:read / keypairs:read / audit:read / system:read（Agent 不支持 keypairs:write 与 credentials:write）。
 - 严禁操作：`POST /credentials/{id}/reveal`、`POST /keypairs/{id}/private-key`、Web 终端——Agent 调用一律 403。
 - 所有 Agent 调用（含读取）都会写审计（actor_kind=agent）。
@@ -33,8 +33,8 @@
 - `hosts_list` 支持 `q/env/status/limit/fields`；`hosts_create` 不允许绑定凭据/密钥对。
 
 ## 官方 Skill
-- `skills/boerfen-assets/SKILL.md` + `scripts/api.sh`
-- 环境变量：`BOERFEN_BASE_URL`、`BOERFEN_API_TOKEN`
+- `skills/opsvault/SKILL.md` + `scripts/api.sh`
+- 环境变量：`OPSVAULT_BASE_URL`、`OPSVAULT_API_TOKEN`
 - 常用：`api.sh hosts list --env prod`、`api.sh hosts get <id>`、`api.sh hosts create <json>`、`api.sh hosts update <id> <json>`、`api.sh hosts probe <id>`、`api.sh keys list`
 
 ## 安装与升级（状态可读，执行需人类）

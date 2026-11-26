@@ -1,5 +1,5 @@
 {
-  "name": "boerfen-assets",
+  "name": "opsvault",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -10,13 +10,13 @@
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
-    "start": "pnpm --filter @boerfen/server start",
+    "start": "pnpm --filter @opsvault/server start",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "test:e2e": "pnpm --filter @boerfen/web test:e2e",
-    "migrate": "pnpm --filter @boerfen/server migrate",
-    "cli": "pnpm --filter @boerfen/server cli"
+    "test:e2e": "pnpm --filter @opsvault/web test:e2e",
+    "migrate": "pnpm --filter @opsvault/server migrate",
+    "cli": "pnpm --filter @opsvault/server cli"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

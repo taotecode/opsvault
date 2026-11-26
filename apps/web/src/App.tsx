@@ -30,8 +30,8 @@ function UnauthorizedListener() {
       queryClient.clear();
       navigate('/login', { replace: true });
     };
-    window.addEventListener('boerfen:unauthorized', handler);
-    return () => window.removeEventListener('boerfen:unauthorized', handler);
+    window.addEventListener('opsvault:unauthorized', handler);
+    return () => window.removeEventListener('opsvault:unauthorized', handler);
   }, [navigate, queryClient]);
   return null;
 }

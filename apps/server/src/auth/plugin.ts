@@ -3,12 +3,12 @@ import { sha256Hex } from '../lib/crypto.js';
 import { errors } from '../lib/errors.js';
 import type { RequestAuth } from '../lib/permissions.js';
 import { writeAudit } from '../lib/audit.js';
-import type { Scope } from '@boerfen/shared';
+import type { Scope } from '@opsvault/shared';
 
 /**
  * 认证插件：
- * - Bearer wfv_… → API 令牌（哈希校验、scope、last_used）
- * - bf_session Cookie → 浏览器会话（写请求要求 x-csrf-token 与 bf_csrf Cookie 一致）
+ * - Bearer ovt_… → API 令牌（哈希校验、scope、last_used）
+ * - ov_session Cookie → 浏览器会话（写请求要求 x-csrf-token 与 ov_csrf Cookie 一致）
  * - 安装完成前 /setup 相关路径由 setup 路由自行处理
  */
 export async function authPlugin(app: FastifyInstance): Promise<void> {
@@ -18,7 +18,7 @@ export async function authPlugin(app: FastifyInstance): Promise<void> {
     const header = req.headers.authorization;
     if (header && header.startsWith('Bearer ')) {
       const token = header.slice('Bearer '.length).trim();
-      if (!token.startsWith('wfv_')) throw errors.unauthorized('无效令牌');
+      if (!token.startsWith('ovt_')) throw errors.unauthorized('无效令牌');
       const row = await app.db
         .selectFrom('api_tokens')
         .innerJoin('users', 'users.id', 'api_tokens.user_id')
@@ -71,7 +71,7 @@ export async function authPlugin(app: FastifyInstance): Promise<void> {
       return;
     }
 
-    const cookieToken = req.cookies?.bf_session;
+    const cookieToken = req.cookies?.ov_session;
     if (cookieToken) {
       const row = await app.db
         .selectFrom('sessions')
@@ -112,7 +112,7 @@ export async function authPlugin(app: FastifyInstance): Promise<void> {
       const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
       if (unsafe) {
         const csrfHeader = req.headers['x-csrf-token'];
-        const csrfCookie = req.cookies?.bf_csrf;
+        const csrfCookie = req.cookies?.ov_csrf;
         if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie || csrfHeader !== row.csrf_token) {
           throw errors.csrf();
         }

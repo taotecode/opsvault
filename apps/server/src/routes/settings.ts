@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { settingsPatchSchema } from '@boerfen/shared';
+import { settingsPatchSchema } from '@opsvault/shared';
 import { denyAgent, requireAdmin, requireSession, scopeCheck } from '../lib/permissions.js';
 import { parseBody } from '../lib/validate.js';
 import { actorFromRequest } from '../lib/actor.js';
@@ -72,6 +72,6 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     const notifications = settings.notifications as Record<string, unknown>;
     const url = String(notifications.webhookUrl ?? '').trim();
     if (!url) throw errors.validation(null, '请先保存 Webhook 地址');
-    return { data: await sendWebhook(app.db, 'test', { message: '铂尔分 Webhook 测试消息' }) };
+    return { data: await sendWebhook(app.db, 'test', { message: 'OpsVault Webhook 测试消息' }) };
   });
 }

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${BOERFEN_BASE_URL:-}"
-TOKEN="${BOERFEN_API_TOKEN:-}"
+BASE="${OPSVAULT_BASE_URL:-}"
+TOKEN="${OPSVAULT_API_TOKEN:-}"
 
 if [[ -z "$BASE" || -z "$TOKEN" ]]; then
-  echo "需要设置 BOERFEN_BASE_URL 与 BOERFEN_API_TOKEN" >&2
+  echo "需要设置 OPSVAULT_BASE_URL 与 OPSVAULT_API_TOKEN" >&2
   exit 2
 fi
 

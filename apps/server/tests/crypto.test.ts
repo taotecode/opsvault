@@ -18,7 +18,7 @@ import { generateSshKeyPair, prepareImportedPrivateKey, parsePublicKey } from '.
 import { loadConfig } from '../src/config.js';
 import { TOTP, Secret } from 'otpauth';
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-crypto-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opsvault-crypto-'));
 const config = loadConfig({
   dataDir: dir,
   db: { driver: 'sqlite', path: path.join(dir, 'unused.db') },

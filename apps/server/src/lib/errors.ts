@@ -1,5 +1,5 @@
 import type { FastifyReply } from 'fastify';
-import { ERROR_CODES, type ErrorCode } from '@boerfen/shared';
+import { ERROR_CODES, type ErrorCode } from '@opsvault/shared';
 
 export class AppError extends Error {
   statusCode: number;

@@ -21,7 +21,7 @@ import {
 import { errors } from '../lib/errors.js';
 import { writeAudit } from '../lib/audit.js';
 import type { Actor } from '../lib/actor.js';
-import type { KeypairImportInput } from '@boerfen/shared';
+import type { KeypairImportInput } from '@opsvault/shared';
 import { getHostRow } from './hosts.js';
 
 export interface KeypairDto {

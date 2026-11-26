@@ -1,6 +1,6 @@
 # Agent 接入
 
-铂尔分把「人用的功能」同时做成「Agent 能读、能调、管得住」的接口。四种方式：
+OpsVault 把「人用的功能」同时做成「Agent 能读、能调、管得住」的接口。四种方式：
 
 ## 1. 机器可读文档
 
@@ -31,10 +31,10 @@ Claude Code 的 `.mcp.json` 示例：
 ```json
 {
   "mcpServers": {
-    "boerfen-assets": {
+    "opsvault": {
       "type": "http",
       "url": "http://localhost:8080/mcp",
-      "headers": { "Authorization": "Bearer wfv_xxx" }
+      "headers": { "Authorization": "Bearer ovt_xxx" }
     }
   }
 }
@@ -45,10 +45,10 @@ Claude Code 的 `.mcp.json` 示例：
 ## 4. 官方 Skill
 
 ```bash
-cp -r skills/boerfen-assets ~/.claude/skills/
-export BOERFEN_BASE_URL=http://localhost:8080
-export BOERFEN_API_TOKEN=wfv_xxx
-skills/boerfen-assets/scripts/api.sh hosts list --env prod
+cp -r skills/opsvault ~/.claude/skills/
+export OPSVAULT_BASE_URL=http://localhost:8080
+export OPSVAULT_API_TOKEN=ovt_xxx
+skills/opsvault/scripts/api.sh hosts list --env prod
 ```
 
 `SKILL.md` 指导模型何时使用、如何调用、如何安全操作；`api.sh` 封装常用命令：

@@ -34,8 +34,8 @@ async function login(email = ADMIN_EMAIL, password = ADMIN_PASSWORD): Promise<Co
   });
   const setCookie = res.headers['set-cookie'];
   const cookies = Array.isArray(setCookie) ? setCookie : [setCookie ?? ''];
-  const session = cookies.find((c) => c.startsWith('bf_session='))!.split(';')[0]!;
-  const csrfCookie = cookies.find((c) => c.startsWith('bf_csrf='))!.split(';')[0]!;
+  const session = cookies.find((c) => c.startsWith('ov_session='))!.split(';')[0]!;
+  const csrfCookie = cookies.find((c) => c.startsWith('ov_csrf='))!.split(';')[0]!;
   const csrf = decodeURIComponent(csrfCookie.split('=')[1]!);
   return { cookie: `${session}; ${csrfCookie}`, csrf };
 }
@@ -45,7 +45,7 @@ function authHeaders(c: CookiePair, extra: Record<string, string> = {}): Record<
 }
 
 beforeAll(async () => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-api-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opsvault-api-'));
   const pgUrl = process.env.TEST_POSTGRES_URL;
   if (pgUrl) {
     // 仅用于专用测试库：保证重复运行从干净 schema 开始
@@ -347,7 +347,7 @@ describe('api integration', () => {
     });
     expect(token.statusCode).toBe(200);
     agentToken = token.json().data.token;
-    expect(agentToken.startsWith('wfv_')).toBe(true);
+    expect(agentToken.startsWith('ovt_')).toBe(true);
 
     const hosts = await app.inject({
       method: 'GET',
@@ -489,7 +489,7 @@ describe('api integration', () => {
     });
     expect(init.ok).toBe(true);
     const initBody = (await init.json()) as { result?: { serverInfo?: { name?: string } } };
-    expect(initBody.result?.serverInfo?.name).toBe('boerfen-assets');
+    expect(initBody.result?.serverInfo?.name).toBe('opsvault');
 
     const list = await fetch(`${baseUrl}/mcp`, {
       method: 'POST',
@@ -555,7 +555,7 @@ describe('api integration', () => {
     const setCookie = userLogin.headers['set-cookie'];
     const raw = Array.isArray(setCookie) ? setCookie : [setCookie ?? ''];
     const cookie = raw.map((c) => c.split(';')[0]).join('; ');
-    const csrf = decodeURIComponent(raw.find((c) => c.startsWith('bf_csrf='))!.split(';')[0]!.split('=')[1]!);
+    const csrf = decodeURIComponent(raw.find((c) => c.startsWith('ov_csrf='))!.split(';')[0]!.split('=')[1]!);
 
     const setup = await app.inject({
       method: 'POST',

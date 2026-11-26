@@ -5,14 +5,14 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import type { RequestAuth } from '../lib/permissions.js';
 import { errors } from '../lib/errors.js';
 import { TOOL_DEFINITIONS, executeTool } from './tools.js';
 
 function buildServer(app: FastifyInstance, auth: RequestAuth) {
   const server = new Server(
-    { name: 'boerfen-assets', version: APP_VERSION },
+    { name: 'opsvault', version: APP_VERSION },
     { capabilities: { tools: {} } },
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({

@@ -1,17 +1,17 @@
 ---
-name: boerfen-assets
-description: 查询与管理铂尔分（Boerfen Assets）服务器资产平台：列出/搜索服务器、触发 SSH 探测、创建或更新服务器资产、查看凭据元数据、密钥部署与验证状态、生成快速连接命令、读取审计与版本信息。适用于用户问服务器清单、到期提醒、资产盘点、探测配置、密钥能否使用等场景。
+name: opsvault
+description: 查询与管理 OpsVault 服务器资产平台：列出/搜索服务器、触发 SSH 探测、创建或更新服务器资产、查看凭据元数据、密钥部署与验证状态、生成快速连接命令、读取审计与版本信息。适用于用户问服务器清单、到期提醒、资产盘点、探测配置、密钥能否使用等场景。
 ---
 
-# 铂尔分服务器资产管理 · Agent Skill
+# OpsVault 服务器资产管理 · Agent Skill
 
-通过平台 REST API 读取资产与执行受控写操作。API 详情见 `${BOERFEN_BASE_URL}/llms.txt` 与 `/api/v1/openapi.json`。
+通过平台 REST API 读取资产与执行受控写操作。API 详情见 `${OPSVAULT_BASE_URL}/llms.txt` 与 `/api/v1/openapi.json`。
 
 ## 配置
 
 ```bash
-export BOERFEN_BASE_URL=http://localhost:8080
-export BOERFEN_API_TOKEN=wfv_...   # Agent 令牌（默认只读；写操作需对应 scope）
+export OPSVAULT_BASE_URL=http://localhost:8080
+export OPSVAULT_API_TOKEN=ovt_...   # Agent 令牌（默认只读；写操作需对应 scope）
 # version 需要 system:read；Agent 令牌不能生成/部署密钥、不能 reveal 凭据、不能开终端。
 ```
 

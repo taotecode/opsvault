@@ -103,7 +103,7 @@ export function randomToken(bytes = 32): string {
 }
 
 export function newApiToken(): { token: string; hash: string; prefix: string } {
-  const token = 'wfv_' + crypto.randomBytes(32).toString('hex');
+  const token = 'ovt_' + crypto.randomBytes(32).toString('hex');
   return { token, hash: sha256Hex(token), prefix: token.slice(0, 12) };
 }
 
@@ -144,7 +144,7 @@ export function generateTotpSecret(): string {
 
 function totpFrom(secret: string): TOTP {
   return new TOTP({
-    issuer: 'Boerfen Assets',
+    issuer: 'OpsVault',
     label: 'admin',
     secret: Secret.fromBase32(secret),
     algorithm: 'SHA1',
@@ -164,7 +164,7 @@ export function verifyTotpCode(secret: string, code: string): boolean {
 
 export function totpUri(secret: string, account: string): string {
   return new TOTP({
-    issuer: 'Boerfen Assets',
+    issuer: 'OpsVault',
     label: account,
     secret: Secret.fromBase32(secret),
     algorithm: 'SHA1',

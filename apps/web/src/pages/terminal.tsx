@@ -89,7 +89,7 @@ export function TerminalPage() {
       if (!disposed) fitNow();
     });
     observer.observe(container);
-    term.writeln('铂尔分 · Web 终端（SSH 会话全程审计）');
+    term.writeln('OpsVault · Web 终端（SSH 会话全程审计）');
     term.writeln(`目标：ssh ${host.sshUser}@${host.address} -p ${host.port}`);
     term.writeln('正在建立 SSH 会话…');
 

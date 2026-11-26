@@ -91,7 +91,7 @@ export async function generateSshKeyPair(algorithm: 'Ed25519' | 'RSA-4096'): Pro
   fingerprint: string;
   algorithm: 'Ed25519' | 'RSA-4096';
 }> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-key-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opsvault-key-'));
   const keyPath = path.join(dir, 'id_key');
   try {
     const args = [
@@ -101,7 +101,7 @@ export async function generateSshKeyPair(algorithm: 'Ed25519' | 'RSA-4096'): Pro
       '-N',
       '',
       '-C',
-      'boerfen-assets',
+      'opsvault',
       '-f',
       keyPath,
     ];
@@ -145,7 +145,7 @@ export async function prepareImportedPrivateKey(
         : parsed.message,
     );
   }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-import-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opsvault-import-'));
   const keyPath = path.join(dir, 'id_key');
   try {
     const hasPassphrase = !!passphrase;

@@ -30,8 +30,8 @@
 
 ### 认证与权限
 
-- 浏览器：`bf_session`（HttpOnly）+ `bf_csrf`（可读）双提交 CSRF；会话令牌仅存 SHA-256 哈希，可吊销。
-- API/Agent：`Authorization: Bearer wfv_…`，仅存哈希，scope 白名单；Agent 令牌默认只读。
+- 浏览器：`ov_session`（HttpOnly）+ `ov_csrf`（可读）双提交 CSRF；会话令牌仅存 SHA-256 哈希，可吊销。
+- API/Agent：`Authorization: Bearer ovt_…`，仅存哈希，scope 白名单；Agent 令牌默认只读。
 - RBAC：admin / operator / viewer；Agent 令牌在敏感能力（reveal、私钥、终端）上一律 403。
 
 ### 凭据与密钥

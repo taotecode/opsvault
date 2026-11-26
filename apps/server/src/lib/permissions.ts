@@ -1,5 +1,5 @@
 import type { FastifyRequest } from 'fastify';
-import { SCOPES, type Scope } from '@boerfen/shared';
+import { SCOPES, type Scope } from '@opsvault/shared';
 import { errors } from './errors.js';
 
 export interface AuthedUser {

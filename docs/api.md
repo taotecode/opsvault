@@ -2,8 +2,8 @@
 
 - Base URL：`/api/v1`；OpenAPI 3.1：`/api/v1/openapi.json`（Scalar UI：`/api/docs`）；LLM 指南：`/llms.txt`。
 - 认证：
-  - 浏览器会话：登录后 Cookie `bf_session`；写请求需 `x-csrf-token`（值同 `bf_csrf` Cookie）。
-  - API/Agent：`Authorization: Bearer wfv_…`。
+  - 浏览器会话：登录后 Cookie `ov_session`；写请求需 `x-csrf-token`（值同 `ov_csrf` Cookie）。
+  - API/Agent：`Authorization: Bearer ovt_…`。
 - 响应：`{ "data": … }` 或 `{ "data": […], "page": { "cursor": null, "hasMore": false } }`。
 - 错误：`{ "error": { "code", "message", "hint?", "docsUrl?" } }`。
 - 分页：`?limit=&cursor=`；稀疏字段：`?fields=id,name,status`。
@@ -71,11 +71,11 @@ curl -i -c jar.txt -H 'content-type: application/json' \
   http://localhost:8080/api/v1/auth/login
 
 # Agent 令牌读取资产
-curl -H "Authorization: Bearer wfv_xxx" \
+curl -H "Authorization: Bearer ovt_xxx" \
   'http://localhost:8080/api/v1/hosts?env=prod&fields=id,name,status,expiresAt'
 
 # 触发探测（需要 hosts:write 的令牌或会话 + CSRF）
-curl -X POST -H "Authorization: Bearer wfv_xxx" \
+curl -X POST -H "Authorization: Bearer ovt_xxx" \
   http://localhost:8080/api/v1/hosts/<id>/probe
 ```
 

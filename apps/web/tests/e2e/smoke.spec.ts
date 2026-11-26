@@ -16,7 +16,7 @@ async function completeSetup(request: import('@playwright/test').APIRequestConte
   const res = await request.post('/api/v1/setup/complete', {
     data: {
       token,
-      database: { driver: 'sqlite', path: 'data/boerfen.db' },
+      database: { driver: 'sqlite', path: 'data/opsvault.db' },
       admin: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, enableTotp: false },
     },
   });
@@ -27,7 +27,7 @@ async function completeSetup(request: import('@playwright/test').APIRequestConte
 
 async function csrf(context: import('@playwright/test').BrowserContext): Promise<string> {
   const cookies = await context.cookies();
-  const cookie = cookies.find((c) => c.name === 'bf_csrf');
+  const cookie = cookies.find((c) => c.name === 'ov_csrf');
   expect(cookie).toBeTruthy();
   return cookie!.value;
 }

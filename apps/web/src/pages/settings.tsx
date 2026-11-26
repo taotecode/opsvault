@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import { api, downloadFile } from '@/lib/api';
 import type { UpdateInfo, VersionInfo } from '@/types';
 import { useMe, useSetupStatus } from '@/lib/hooks';
@@ -272,7 +272,7 @@ export function SettingsPage() {
               {version.data?.masterKeySource === 'env' ? 'env' : version.data?.masterKeySource === 'file' ? 'file' : '待生成'}
             </Badge>
           </Row>
-          <Row title="数据库引擎" desc={version.data?.database === 'postgres' ? 'PostgreSQL（DATABASE_URL）' : 'SQLite（data/boerfen.db）'}><Badge tone="info">双方言</Badge></Row>
+          <Row title="数据库引擎" desc={version.data?.database === 'postgres' ? 'PostgreSQL（DATABASE_URL）' : 'SQLite（data/opsvault.db）'}><Badge tone="info">双方言</Badge></Row>
           <Row title="安装入口" desc={setup.data?.locked ? '已安装并锁定：/setup 与安装 API 强制返回 404；重装仅限服务器 CLI（reset-install）' : '尚未完成安装或未写入安装锁'}>
             {setup.data?.locked ? <Badge tone="ok">已锁定</Badge> : <Badge tone="warn">未锁定</Badge>}
           </Row>

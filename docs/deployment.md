@@ -11,7 +11,7 @@
 | `DB_DRIVER` | `sqlite`（默认）或 `postgres` |
 | `DATABASE_URL` | PostgreSQL 连接串（`DB_DRIVER=postgres` 时必填） |
 | `MASTER_KEY` | base64 32B；留空则首启生成 `data/master.key`（0600） |
-| `GITHUB_REPO` / `UPDATE_CHECK` | 在线更新检查（例如 `owner/boerfen-assets`；默认关闭） |
+| `GITHUB_REPO` / `UPDATE_CHECK` | 在线更新检查（例如 `owner/opsvault`；默认关闭） |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | 非交互安装（首次启动自动创建管理员并锁定安装入口） |
 | `INSTALL_LOCK` | 强制锁定安装入口 |
 
@@ -23,7 +23,7 @@ docker compose up -d --build
 docker compose logs app | head -20   # Setup Token
 ```
 
-- 数据默认持久化在命名卷 `boerfen-data`（映射 `/app/data`）。
+- 数据默认持久化在命名卷 `opsvault-data`（映射 `/app/data`）。
 - 使用 PostgreSQL：
 
 ```bash
@@ -31,7 +31,7 @@ export POSTGRES_PASSWORD="$(openssl rand -base64 24)"
 docker compose --profile pg up -d pg
 # PostgreSQL 仅绑定 127.0.0.1；密码必须与 POSTGRES_PASSWORD 一致
 DB_DRIVER=postgres \
-DATABASE_URL="postgres://boerfen:${POSTGRES_PASSWORD}@pg:5432/boerfen" \
+DATABASE_URL="postgres://opsvault:${POSTGRES_PASSWORD}@pg:5432/opsvault" \
 docker compose up -d app
 ```
 
@@ -52,16 +52,16 @@ assets.example.com {
 
 ```bash
 git clone <repo>
-cd boerfen-assets
+cd opsvault
 cp .env.example .env
 pnpm install --frozen-lockfile
 pnpm -r build
 node apps/server/dist/main.js
 # 生产建议 systemd（current 为 upgrade.sh 维护的符号链接）：
-# ExecStart=/usr/bin/node /opt/boerfen/current/apps/server/dist/main.js
-# WorkingDirectory=/opt/boerfen/current
-# EnvironmentFile=/opt/boerfen/.env
-# Environment=DATA_DIR=/opt/boerfen/data
+# ExecStart=/usr/bin/node /opt/opsvault/current/apps/server/dist/main.js
+# WorkingDirectory=/opt/opsvault/current
+# EnvironmentFile=/opt/opsvault/.env
+# Environment=DATA_DIR=/opt/opsvault/data
 ```
 
 裸机需要系统安装 `ssh-keygen`（`openssh-client`）。
@@ -69,7 +69,7 @@ node apps/server/dist/main.js
 ## 备份与恢复
 
 - 总是同时备份数据库与主密钥：
-  - SQLite：`data/boerfen.db*` 与 `data/master.key`
+  - SQLite：`data/opsvault.db*` 与 `data/master.key`
   - PostgreSQL：`pg_dump` + `data/master.key`
 - 恢复：停止服务 → 还原数据库与 `master.key` → 启动。
 - 丢失 `master.key` 将无法解密已有凭据/私钥，请与数据库分开安全保存。

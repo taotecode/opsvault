@@ -19,7 +19,7 @@ import {
   TerminalSquare,
   Users,
 } from 'lucide-react';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import type { Host } from '@/types';
 import { api } from '@/lib/api';
 import { useMe, useSettings } from '@/lib/hooks';
@@ -141,8 +141,8 @@ export function AppShell() {
       <div className="app-bg" />
       <aside className="sidebar glass-sidebar">
         <div className="flex items-center gap-2.5 px-4 py-3.5">
-          <div className="grid h-[31px] w-[31px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[var(--brand-strong)] to-[var(--brand)] text-[15px] font-bold text-[#241504] shadow-[inset_0_1px_0_rgba(255,255,255,.35)]">
-            铂
+          <div className="grid h-[31px] w-[31px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[var(--brand-strong)] to-[var(--brand)] text-[13px] font-bold tracking-wide text-[#241504] shadow-[inset_0_1px_0_rgba(255,255,255,.35)]">
+            OV
           </div>
           <div className="brand-text">
             <div className="text-[14px] font-semibold tracking-wide">{t('appName')}</div>
@@ -185,14 +185,14 @@ export function AppShell() {
           >
             {resolvedTheme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <span className="side-foot-text">boerfen-assets v{APP_VERSION} · MIT</span>
+          <span className="side-foot-text">opsvault v{APP_VERSION} · MIT</span>
         </div>
       </aside>
 
       <div className="content-wrap">
         <header className="topbar glass-topbar">
           <div className="topbar-crumb flex items-center gap-2 text-[12px] text-[var(--ink-3)]">
-            <span>铂尔分</span>
+            <span>OpsVault</span>
             <span>/</span>
             <span className="font-semibold text-[var(--ink)]">{t(`nav.${pageTitle}`)}</span>
           </div>

@@ -16,7 +16,7 @@ let config: AppConfig;
 let db: Kysely<DatabaseSchema>;
 
 beforeAll(async () => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-mk-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opsvault-mk-'));
   config = loadConfig({
     dataDir: dir,
     db: { driver: 'sqlite', path: path.join(dir, 'mk.db') },

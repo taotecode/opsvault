@@ -26,7 +26,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   const method = (options.method || 'GET').toUpperCase();
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = readCookie('bf_csrf');
+    const csrf = readCookie('ov_csrf');
     if (csrf) headers.set('x-csrf-token', csrf);
   }
   const res = await fetch(path, { credentials: 'include', ...options, headers });
@@ -44,7 +44,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       hint = body?.error?.hint;
     }
     if (res.status === 401 && !path.includes('/auth/me')) {
-      window.dispatchEvent(new CustomEvent('boerfen:unauthorized'));
+      window.dispatchEvent(new CustomEvent('opsvault:unauthorized'));
     }
     throw new ApiError(res.status, code, message, hint);
   }
@@ -68,7 +68,7 @@ export const api = {
 export async function downloadFile(path: string, method: 'GET' | 'POST' = 'GET'): Promise<void> {
   const headers: Record<string, string> = {};
   if (method !== 'GET') {
-    const csrf = readCookie('bf_csrf');
+    const csrf = readCookie('ov_csrf');
     if (csrf) headers['x-csrf-token'] = csrf;
   }
   const res = await fetch(path, { method, credentials: 'include', headers });
@@ -121,7 +121,7 @@ export async function listPage<T>(path: string): Promise<Page<T>> {
     } catch {
       /* ignore */
     }
-    if (res.status === 401) window.dispatchEvent(new CustomEvent('boerfen:unauthorized'));
+    if (res.status === 401) window.dispatchEvent(new CustomEvent('opsvault:unauthorized'));
     throw new ApiError(res.status, code, message, hint);
   }
   return (await res.json()) as Page<T>;

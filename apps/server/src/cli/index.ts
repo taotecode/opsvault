@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { loadConfig } from '../config.js';
 import { createDatabase, migrateToLatest } from '../db/database.js';
 import { currentSetupToken, isInstalled, resetInstall } from '../services/setup.js';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import { ulid } from 'ulid';
 import { getMasterKey } from '../lib/crypto.js';
 import { rotateMasterKey } from '../lib/masterKeyRotation.js';

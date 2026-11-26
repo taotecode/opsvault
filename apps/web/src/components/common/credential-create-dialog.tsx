@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Sparkles } from 'lucide-react';
 import { z } from 'zod';
-import { credentialCreateSchema } from '@boerfen/shared';
+import { credentialCreateSchema } from '@opsvault/shared';
 import { api } from '@/lib/api';
 import { toastError } from '@/lib/format';
 import type { Credential, Host } from '@/types';

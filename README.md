@@ -1,4 +1,4 @@
-# 铂尔分服务器资产管理平台 · Boerfen Assets
+# OpsVault
 
 > 自托管、开源的服务器资产管理与凭据金库：资产台账 + SSH 自动探测 + Web 终端 + 凭据加密 + 密钥全生命周期 + 团队权限 + **AI/Agent 原生接入**。
 > 单容器交付，SQLite 零依赖起步，生产可切换 PostgreSQL。
@@ -50,14 +50,14 @@ docker compose logs app | head -20   # 查看一次性 Setup Token
 # 使用 PostgreSQL（compose pg profile）；POSTGRES_PASSWORD 必填
 export POSTGRES_PASSWORD="$(openssl rand -base64 24)"
 docker compose --profile pg up -d pg
-DB_DRIVER=postgres DATABASE_URL="postgres://boerfen:${POSTGRES_PASSWORD}@pg:5432/boerfen" docker compose up -d app
+DB_DRIVER=postgres DATABASE_URL="postgres://opsvault:${POSTGRES_PASSWORD}@pg:5432/opsvault" docker compose up -d app
 ```
 
 ## 本地开发
 
 ```bash
 pnpm install
-pnpm --filter @boerfen/shared build
+pnpm --filter @opsvault/shared build
 pnpm dev
 # 后端 http://localhost:8080（首次启动控制台打印 Setup Token）
 # 前端 http://localhost:5173（代理 /api 与 /mcp）
@@ -66,8 +66,8 @@ pnpm dev
 构建与单机运行：
 
 ```bash
-pnpm --filter @boerfen/web build
-pnpm --filter @boerfen/server build
+pnpm --filter @opsvault/web build
+pnpm --filter @opsvault/server build
 pnpm start
 ```
 
@@ -77,8 +77,8 @@ pnpm start
 pnpm -r typecheck
 pnpm -r lint
 pnpm -r test                  # SQLite 集成（默认）
-TEST_POSTGRES_URL=postgres://boerfen:boerfen@127.0.0.1:5432/boerfen_test \
-  pnpm --filter @boerfen/server test   # PostgreSQL 双方言
+TEST_POSTGRES_URL=postgres://opsvault:opsvault@127.0.0.1:5432/opsvault_test \
+  pnpm --filter @opsvault/server test   # PostgreSQL 双方言
 ```
 
 验收要求：SQLite 与 PostgreSQL 均需通过；安装锁定、Agent reveal 403、私钥导出二次验证、密钥导入/连接命令/可用性检测、MCP `initialize/tools/list`、llms.txt、OpenAPI 合法性均在测试中覆盖。
@@ -88,12 +88,12 @@ TEST_POSTGRES_URL=postgres://boerfen:boerfen@127.0.0.1:5432/boerfen_test \
 1. 创建 **Agent 令牌**（管理员 → API 与 Agent → 新建令牌，勾选所需 scope；默认只读）。
 2. 阅读 `/llms.txt`（仓库根与站点均提供），OpenAPI 在 `/api/v1/openapi.json`，人类文档在 `/api/docs`。
 3. MCP：`POST /mcp`（Streamable HTTP，Bearer 令牌），工具包括 `hosts_list`、`host_get`、`hosts_search`、`hosts_create`、`hosts_update`、`host_probe`、`credentials_list_meta`、`keypairs_list`、`keypairs_connect_command`、`audit_list`、`system_version`。
-4. 官方 Skill：`skills/boerfen-assets/`（`SKILL.md` + `scripts/api.sh`）：
+4. 官方 Skill：`skills/opsvault/`（`SKILL.md` + `scripts/api.sh`）：
 
 ```bash
-cp -r skills/boerfen-assets ~/.claude/skills/
-export BOERFEN_BASE_URL=http://localhost:8080
-export BOERFEN_API_TOKEN=wfv_...
+cp -r skills/opsvault ~/.claude/skills/
+export OPSVAULT_BASE_URL=http://localhost:8080
+export OPSVAULT_API_TOKEN=ovt_...
 scripts/api.sh hosts list --env prod
 ```
 
@@ -123,4 +123,4 @@ docs/           架构、安全、部署、安装、升级、API、Agent、组�
 
 ## License
 
-MIT © 2026 Boerfen Assets contributors
+MIT © 2026 OpsVault contributors

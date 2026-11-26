@@ -23,7 +23,7 @@ export function SetupPage() {
   });
   const [token, setToken] = useState('');
   const [driver, setDriver] = useState<Driver>('sqlite');
-  const [pg, setPg] = useState({ host: '127.0.0.1', port: '5432', database: 'boerfen', user: 'boerfen', password: '' });
+  const [pg, setPg] = useState({ host: '127.0.0.1', port: '5432', database: 'opsvault', user: 'opsvault', password: '' });
   const [admin, setAdmin] = useState({ email: '', password: '', confirm: '' });
   const [busy, setBusy] = useState(false);
   const [dbCheck, setDbCheck] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function SetupPage() {
 
   const databasePayload = () =>
     driver === 'sqlite'
-      ? { driver: 'sqlite' as const, path: 'data/boerfen.db' }
+      ? { driver: 'sqlite' as const, path: 'data/opsvault.db' }
       : {
           driver: 'postgres' as const,
           host: pg.host,
@@ -108,10 +108,10 @@ export function SetupPage() {
       <div className="relative z-10 grid min-h-screen place-items-center p-6">
         <div className="w-full max-w-[720px]">
           <div className="mb-5 flex items-center justify-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[var(--brand-strong)] to-[var(--brand)] text-lg font-bold text-[#241504]">铂</div>
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[var(--brand-strong)] to-[var(--brand)] text-base font-bold tracking-wide text-[#241504]">OV</div>
             <div>
               <div className="text-[18px] font-semibold">安装向导</div>
-              <div className="text-[11px] text-[var(--ink-3)]">铂尔分服务器资产管理平台 · 在线安装</div>
+              <div className="text-[11px] text-[var(--ink-3)]">OpsVault 服务器资产管理平台 · 在线安装</div>
             </div>
           </div>
           <div className="glass-panel p-6">
@@ -194,7 +194,7 @@ export function SetupPage() {
                     <div className="sm:col-span-2"><label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">密码</label><Input type="password" value={pg.password} onChange={(e) => setPg({ ...pg, password: e.target.value })} /></div>
                   </div>
                 ) : (
-                  <Callout>数据文件：<span className="mono">data/boerfen.db</span>；备份 = 复制该文件与 <span className="mono">data/master.key</span>。</Callout>
+                  <Callout>数据文件：<span className="mono">data/opsvault.db</span>；备份 = 复制该文件与 <span className="mono">data/master.key</span>。</Callout>
                 )}
                 {dbCheck ? <Callout tone={dbCheck.startsWith('连接成功') ? 'ok' : 'warn'}>{dbCheck}</Callout> : null}
                 <div className="flex justify-between">

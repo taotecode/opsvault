@@ -8,7 +8,7 @@ import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import fastifyApiReference from '@scalar/fastify-api-reference';
 import type { Kysely } from 'kysely';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import type { AppConfig } from './config.js';
 import type { DatabaseSchema } from './db/types.js';
 import { authPlugin } from './auth/plugin.js';
@@ -126,7 +126,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     await app.register(fastifyApiReference, {
       routePrefix: '/api/docs',
       configuration: {
-        sources: [{ url: '/api/v1/openapi.json', title: 'Boerfen Assets API' }],
+        sources: [{ url: '/api/v1/openapi.json', title: 'OpsVault API' }],
       },
     });
   } catch (e) {
@@ -163,7 +163,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
     reply
       .type('text/plain')
-      .send(`Boerfen Assets server v${APP_VERSION} is running. Web UI not built yet.`);
+      .send(`OpsVault server v${APP_VERSION} is running. Web UI not built yet.`);
   });
 
   return app;

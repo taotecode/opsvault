@@ -4,7 +4,7 @@ import {
   hostCreateSchema,
   hostListQuerySchema,
   hostPatchSchema,
-} from '@boerfen/shared';
+} from '@opsvault/shared';
 import {
   createHost,
   deleteHost,

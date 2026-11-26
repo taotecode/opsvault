@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import type { DatabaseSchema } from '../db/types.js';
 import { mergedSettings } from './settings.js';
 
@@ -21,7 +21,7 @@ export async function sendWebhook(
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ event, platform: 'boerfen-assets', version: APP_VERSION, at: new Date().toISOString(), ...payload }),
+      body: JSON.stringify({ event, platform: 'opsvault', version: APP_VERSION, at: new Date().toISOString(), ...payload }),
       signal: AbortSignal.timeout(5_000),
     });
     return { ok: res.ok, status: res.status };

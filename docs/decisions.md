@@ -18,7 +18,7 @@
 
 ## D3 认证：自实现会话+CSRF，未引入额外会话框架
 
-- Cookie `bf_session`（HttpOnly）与 `bf_csrf` 双提交；会话令牌仅存哈希。
+- Cookie `ov_session`（HttpOnly）与 `ov_csrf` 双提交；会话令牌仅存哈希。
 - API 令牌独立 scope 模型；Agent 敏感操作专用拒绝清单。
 - 简单、可审计、无额外依赖；所有写路由统一在认证钩子里校验 CSRF。
 

@@ -76,13 +76,13 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     db = {
       driver: 'postgres',
       connectionString:
-        process.env.DATABASE_URL || 'postgres://boerfen:boerfen@localhost:5432/boerfen',
+        process.env.DATABASE_URL || 'postgres://opsvault:opsvault@localhost:5432/opsvault',
     };
     dbSource = 'env';
   } else {
     db = {
       driver: 'sqlite',
-      path: path.join(dataDir, 'boerfen.db'),
+      path: path.join(dataDir, 'opsvault.db'),
     };
     dbSource = 'default';
   }

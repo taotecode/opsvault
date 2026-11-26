@@ -20,7 +20,7 @@ jobs:
           cache: pnpm
       - run: sudo apt-get update && sudo apt-get install -y openssh-client
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @boerfen/shared build
+      - run: pnpm --filter @opsvault/shared build
       - run: pnpm -r typecheck
       - run: pnpm -r lint
       - run: pnpm -r test
@@ -28,12 +28,12 @@ jobs:
       - name: Package release tree
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          tar -czf "boerfen-assets-${VERSION}.tar.gz" \
+          tar -czf "opsvault-${VERSION}.tar.gz" \
             --exclude='.git' --exclude='node_modules' --exclude='data' --exclude='.e2e-data' \
             apps packages skills scripts docs Dockerfile docker-compose.yml \
             package.json pnpm-lock.yaml pnpm-workspace.yaml README.md LICENSE \
             CHANGELOG.md SECURITY.md llms.txt .env.example
-          sha256sum "boerfen-assets-${VERSION}.tar.gz" > SHA256SUMS
+          sha256sum "opsvault-${VERSION}.tar.gz" > SHA256SUMS
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -63,6 +63,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            boerfen-assets-*.tar.gz
+            opsvault-*.tar.gz
             SHA256SUMS
           generate_release_notes: true

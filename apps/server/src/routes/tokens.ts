@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { tokenCreateSchema } from '@boerfen/shared';
+import { tokenCreateSchema } from '@opsvault/shared';
 import { createToken, deleteToken, listTokens } from '../services/tokens.js';
 import { actorFromRequest } from '../lib/actor.js';
 import { denyAgent, requireAdmin, requireSession } from '../lib/permissions.js';

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import { denyAgent, getAuth, requireAdmin, requireSession, scopeCheck } from '../lib/permissions.js';
 import { checkUpdates, versionHistory, versionInfo } from '../services/system.js';
 import { isInstalled } from '../services/setup.js';
@@ -61,7 +61,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
       sessions: await app.db.selectFrom('sessions').selectAll().execute(),
     };
     const now = new Date().toISOString();
-    const filename = `boerfen-export-${now.slice(0, 10)}.json`;
+    const filename = `opsvault-export-${now.slice(0, 10)}.json`;
     await writeAudit(app.db, {
       ...actorFromRequest(req),
       actorId: req.auth?.user.id ?? null,

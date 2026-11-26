@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   setupCompleteSchema,
   setupTestDbSchema,
-} from '@boerfen/shared';
+} from '@opsvault/shared';
 import {
   checkEnvironment,
   completeSetup,

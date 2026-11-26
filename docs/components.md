@@ -38,7 +38,7 @@ pages/*                页面编排（仅组合组件与数据）
 
 - 每个 common 组件必须有类型化 props，并在至少一个页面复用。
 - 页面文件 ≤ ~300 行；超出时抽出页面专属组件（例如 `host-drawer.tsx`）。
-- 表单优先 react-hook-form + zod（schema 从 `@boerfen/shared` 复用）。
+- 表单优先 react-hook-form + zod（schema 从 `@opsvault/shared` 复用）。
 - 所有敏感内容（凭据明文、私钥）只存在于临时 Modal state，不进入 query 缓存；关闭/倒计时结束即清除。
 - 视觉：优先使用 `glass-panel`、`btn`、`field`、`badge`、`data-table` 等全局类，不另行定义一套相似样式。
 - 图标统一 lucide-react；提示统一 sonner；命令面板 cmdk。

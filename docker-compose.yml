@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    image: ${BOERFEN_IMAGE:-boerfen-assets:local}
+    image: ${OPSVAULT_IMAGE:-opsvault:local}
     ports:
       - '${PORT:-8080}:8080'
     environment:
@@ -20,27 +20,27 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - boerfen-data:/app/data
+      - opsvault-data:/app/data
     restart: unless-stopped
 
   pg:
     image: postgres:16-alpine
     profiles: ['pg']
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-boerfen}
+      POSTGRES_USER: ${POSTGRES_USER:-opsvault}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
-      POSTGRES_DB: ${POSTGRES_DB:-boerfen}
+      POSTGRES_DB: ${POSTGRES_DB:-opsvault}
     ports:
       - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
-      - boerfen-pg-data:/var/lib/postgresql/data
+      - opsvault-pg-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-boerfen} -d ${POSTGRES_DB:-boerfen}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-opsvault} -d ${POSTGRES_DB:-opsvault}']
       interval: 3s
       timeout: 3s
       retries: 20
     restart: unless-stopped
 
 volumes:
-  boerfen-data:
-  boerfen-pg-data:
+  opsvault-data:
+  opsvault-pg-data:

@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import { ulid } from 'ulid';
-import type { Scope } from '@boerfen/shared';
+import type { Scope } from '@opsvault/shared';
 import type { DatabaseSchema } from '../db/types.js';
 import { newApiToken } from '../lib/crypto.js';
 import { errors } from '../lib/errors.js';

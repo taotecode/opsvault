@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Globe } from 'lucide-react';
-import { hostCreateSchema } from '@boerfen/shared';
+import { hostCreateSchema } from '@opsvault/shared';
 import { api } from '@/lib/api';
 import { toastError } from '@/lib/format';
 import type { Credential, Host, Keypair } from '@/types';

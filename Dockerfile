@@ -4,9 +4,9 @@ RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @boerfen/shared build \
- && pnpm --filter @boerfen/server build \
- && pnpm --filter @boerfen/web build
+RUN pnpm --filter @opsvault/shared build \
+ && pnpm --filter @opsvault/server build \
+ && pnpm --filter @opsvault/web build
 
 FROM node:22-alpine AS runtime
 RUN apk add --no-cache openssh-client

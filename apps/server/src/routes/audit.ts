@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { auditQuerySchema } from '@boerfen/shared';
+import { auditQuerySchema } from '@opsvault/shared';
 import { denyAgent, getAuth, requireAdmin, requireSession, scopeCheck } from '../lib/permissions.js';
 import { parseQuery } from '../lib/validate.js';
 import { requireReveal } from '../services/auth.js';

@@ -5,7 +5,7 @@ import {
   keypairGenerateSchema,
   keypairImportSchema,
   keypairVerifySchema,
-} from '@boerfen/shared';
+} from '@opsvault/shared';
 import {
   connectCommand,
   decryptPrivateForDownload,

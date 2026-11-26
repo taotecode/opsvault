@@ -3,7 +3,7 @@ import {
   credentialCreateSchema,
   credentialPatchSchema,
   generatePasswordSchema,
-} from '@boerfen/shared';
+} from '@opsvault/shared';
 import {
   createCredential,
   deleteCredential,

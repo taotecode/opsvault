@@ -16,7 +16,7 @@ let db: Kysely<DatabaseSchema>;
 let dir: string;
 
 beforeAll(async () => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boerfen-setup-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opsvault-setup-'));
   config = loadConfig({
     dataDir: dir,
     db: { driver: 'sqlite', path: path.join(dir, 'setup.db') },
@@ -69,7 +69,7 @@ describe('setup wizard and lock', () => {
       method: 'POST',
       url: '/api/v1/setup/test-database',
       headers: { 'x-setup-token': token, 'content-type': 'application/json' },
-      payload: { database: { driver: 'sqlite', path: 'data/boerfen.db' } },
+      payload: { database: { driver: 'sqlite', path: 'data/opsvault.db' } },
     });
     expect(testDb.statusCode).toBe(200);
     expect(testDb.json().data.ok).toBe(true);
@@ -80,7 +80,7 @@ describe('setup wizard and lock', () => {
       headers: { 'content-type': 'application/json' },
       payload: {
         token,
-        database: { driver: 'sqlite', path: 'data/boerfen.db' },
+        database: { driver: 'sqlite', path: 'data/opsvault.db' },
         admin: { email: 'install-admin@example.com', password: 'InstallPass1!', enableTotp: false },
       },
     });

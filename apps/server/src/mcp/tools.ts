@@ -8,7 +8,7 @@ import {
   hostPatchSchema,
   idSchema,
   type Scope,
-} from '@boerfen/shared';
+} from '@opsvault/shared';
 import { listHosts, getHostRow, hostDto, createHost, patchHost, projectHosts } from '../services/hosts.js';
 import { probeHost } from '../services/probe.js';
 import { listCredentials } from '../services/credentials.js';

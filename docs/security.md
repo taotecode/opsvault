@@ -20,7 +20,7 @@
 
 - 密码哈希：Argon2id（memory 19MiB, time 2, parallelism 1）。
 - 凭据：AES-256-GCM；每条随机 32B DEK；DEK 与值分别加密；IV 12B 随机，GCM tag 校验。
-- API 令牌：`wfv_` + 32B 随机十六进制；库存 SHA-256。
+- API 令牌：`ovt_` + 32B 随机十六进制；库存 SHA-256。
 - Setup Token：随机 4+4 hex，写入 `data/setup.token`（0600），安装完成删除。
 - MASTER_KEY：base64 32B；优先环境变量，否则首启生成 `data/master.key`（0600）。
 

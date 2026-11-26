@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { userInviteSchema, userPatchSchema } from '@boerfen/shared';
+import { userInviteSchema, userPatchSchema } from '@opsvault/shared';
 import { inviteUser, listUsers, patchUser } from '../services/users.js';
 import { actorFromRequest } from '../lib/actor.js';
 import { denyAgent, requireAdmin, requireSession } from '../lib/permissions.js';

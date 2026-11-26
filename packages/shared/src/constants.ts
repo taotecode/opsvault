@@ -46,5 +46,5 @@ export const DEFAULT_TOKEN_SCOPES: Scope[] = [
   'system:read',
 ];
 
-export const APP_NAME = '铂尔分服务器资产管理平台';
+export const APP_NAME = 'OpsVault';
 export const APP_VERSION = '0.1.0';

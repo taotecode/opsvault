@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 import { ulid } from 'ulid';
 import type { DatabaseSchema } from '../db/types.js';
-import type { AuditCategory } from '@boerfen/shared';
+import type { AuditCategory } from '@opsvault/shared';
 
 export interface AuditInput {
   actorId?: string | null;

@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { DatabaseSchema, HostsTable } from '../db/types.js';
-import type { HostCreateInput, HostPatchInput } from '@boerfen/shared';
+import type { HostCreateInput, HostPatchInput } from '@opsvault/shared';
 import { ulid } from 'ulid';
 import { errors } from '../lib/errors.js';
 import { writeAudit } from '../lib/audit.js';

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { APP_NAME, APP_VERSION, SCOPES } from '@boerfen/shared';
+import { APP_NAME, APP_VERSION, SCOPES } from '@opsvault/shared';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** src/lib 或 dist/lib 均上溯 4 层到达仓库根 */
@@ -133,8 +133,8 @@ export function openApiSpec(baseUrl = 'http://localhost:8080') {
     paths,
     components: {
       securitySchemes: {
-        cookieAuth: { type: 'apiKey', in: 'cookie', name: 'bf_session' },
-        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'wfv_...' },
+        cookieAuth: { type: 'apiKey', in: 'cookie', name: 'ov_session' },
+        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'ovt_...' },
       },
       schemas: {
         Error: {

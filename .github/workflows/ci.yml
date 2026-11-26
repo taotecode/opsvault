@@ -17,12 +17,12 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: boerfen
-          POSTGRES_PASSWORD: boerfen
-          POSTGRES_DB: boerfen_test
+          POSTGRES_USER: opsvault
+          POSTGRES_PASSWORD: opsvault
+          POSTGRES_DB: opsvault_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U boerfen -d boerfen_test"
+          --health-cmd "pg_isready -U opsvault -d opsvault_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -35,11 +35,11 @@ jobs:
           cache: pnpm
       - run: sudo apt-get update && sudo apt-get install -y openssh-client
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @boerfen/shared build
+      - run: pnpm --filter @opsvault/shared build
       - run: pnpm -r typecheck
       - run: pnpm -r lint
       - run: pnpm -r test
         env:
-          TEST_POSTGRES_URL: postgres://boerfen:boerfen@127.0.0.1:5432/boerfen_test
+          TEST_POSTGRES_URL: postgres://opsvault:opsvault@127.0.0.1:5432/opsvault_test
       - run: pnpm -r build
       - run: docker build .

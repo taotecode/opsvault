@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Kysely } from 'kysely';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import type { AppConfig } from '../config.js';
 import type { DatabaseSchema } from '../db/types.js';
 
@@ -86,7 +86,7 @@ export async function checkUpdates(config: AppConfig): Promise<UpdateInfo> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.value;
   try {
     const res = await fetch(`https://api.github.com/repos/${config.githubRepo}/releases/latest`, {
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'boerfen-assets' },
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'opsvault' },
     });
     if (!res.ok) {
       return { ...base, reason: `GitHub API ${res.status}` };

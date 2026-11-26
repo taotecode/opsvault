@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { APP_VERSION } from '@boerfen/shared';
+import { APP_VERSION } from '@opsvault/shared';
 import { loadConfig } from './config.js';
 import { createDatabase, migrateToLatest } from './db/database.js';
 import {
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
 
     console.log('==================================================');
 
-    console.log('🚀 铂尔分服务器资产管理平台 首次安装');
+    console.log('🚀 OpsVault 服务器资产管理平台 首次安装');
 
     console.log(`   安装地址： ${config.baseUrl}/setup`);
 
@@ -47,7 +47,7 @@ async function main(): Promise<void> {
   const app = await buildApp({ config, db });
   startProbeScheduler(app);
   await app.listen({ port: config.port, host: '0.0.0.0' });
-  app.log.info(`Boerfen Assets listening on ${config.baseUrl} (db=${config.db.driver})`);
+  app.log.info(`OpsVault listening on ${config.baseUrl} (db=${config.db.driver})`);
 
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info(`received ${signal}, shutting down`);
