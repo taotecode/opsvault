@@ -64,8 +64,6 @@ export async function collectAuthCandidates(
     });
   };
 
-  if (host.keypair_id) await pushKeypair(host.keypair_id, 'host-keypair');
-
   const pushCredential = async (row: { id: string; name: string; type: string }, role: AuthCandidate['role']): Promise<void> => {
     if (out.some((c) => c.ref === `credential:${row.id}`)) return;
     const full = await db.selectFrom('credentials').selectAll().where('id', '=', row.id).executeTakeFirst();
@@ -85,9 +83,11 @@ export async function collectAuthCandidates(
     const row = await db.selectFrom('credentials').select(['id', 'name', 'type']).where('id', '=', explicitCredentialId).executeTakeFirst();
     if (!row) throw errors.notFound('凭据');
     await pushCredential(row, 'explicit');
-    // 手动选择：只尝试该凭据，不回退到其他凭据
+    // 手动选择：只尝试该凭据（也不回退到主机密钥对），便于定位失效密码
     return out;
   }
+
+  if (host.keypair_id) await pushKeypair(host.keypair_id, 'host-keypair');
 
   const links = await db
     .selectFrom('host_credentials')

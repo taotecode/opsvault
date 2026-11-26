@@ -121,6 +121,35 @@ describe('credential fallback', () => {
     expect(sshState.attempts).toEqual(['BrokenPass1!']);
   });
 
+  it('explicit selection skips the host keypair too', async () => {
+    const host = await createHost(
+      db,
+      { name: 'explicit-host', address: '203.0.113.22', port: 22, sshUser: 'root', env: 'dev' },
+      systemActor('test'),
+    );
+    const cred = await createCredential(
+      db,
+      config,
+      { name: 'explicit-cred', type: 'password', value: 'ExplicitPass1!', hostIds: [host.id] },
+      systemActor('test'),
+    );
+    // 装一条“密钥对”绑定，验证手动选择时不会被它抢先
+    await db
+      .updateTable('hosts')
+      .set({ keypair_id: 'kp-should-not-be-used' })
+      .where('id', '=', host.id)
+      .execute();
+    const hostRow = await db.selectFrom('hosts').selectAll().where('id', '=', host.id).executeTakeFirstOrThrow();
+    const candidates = await collectAuthCandidates(db, config, hostRow, cred.id);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({ ref: `credential:${cred.id}`, role: 'explicit' });
+
+    sshState.failingPasswords = new Set();
+    sshState.attempts = [];
+    await openWithFallback(db, hostRow, candidates, null, async () => undefined);
+    expect(sshState.attempts).toEqual(['ExplicitPass1!']);
+  });
+
   it('editing a credential keeps its primary role on linked hosts', async () => {
     const host = await createHost(
       db,
