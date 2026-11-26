@@ -115,7 +115,6 @@ apps/web        React SPA（液态玻璃设计系统）
 packages/shared Zod schema、常量、错误码
 skills/         Claude Skill（api.sh 封装）
 docs/           架构、安全、部署、安装、升级、API、Agent、组件
-preview/        交互设计预览（mock）
 ```
 
 ## 文档
