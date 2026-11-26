@@ -7,13 +7,16 @@ import '@xterm/xterm/css/xterm.css';
 import { Eraser, Plug, RefreshCw, TerminalSquare } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/hooks';
-import type { Host } from '@/types';
+import type { Host, HostCredentialLink } from '@/types';
 import { Button } from '@/components/ui/controls';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/fields';
 import { Badge } from '@/components/common/badges';
 import { Callout, EmptyState, GlassPanel, PageHeader } from '@/components/common/primitives';
 
 type ConnState = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
+
+/** 终端页的「自动」选项哨兵值（与 host-drawer 保持一致） */
+const AUTO_AUTH = '__auto';
 
 const STATUS: Record<ConnState, { label: string; tone: 'neutral' | 'info' | 'ok' | 'warn' | 'bad' }> = {
   idle: { label: '未连接', tone: 'neutral' },
@@ -37,6 +40,7 @@ export function TerminalPage() {
   const canConnect = !role || role === 'admin' || role === 'operator';
   const [searchParams] = useSearchParams();
   const [hostId, setHostId] = useState(() => searchParams.get('hostId') ?? '');
+  const [credentialId, setCredentialId] = useState(() => searchParams.get('credentialId') ?? '');
   const [status, setStatus] = useState<ConnState>('idle');
   const [retry, setRetry] = useState(0);
   const [connected, setConnected] = useState(false);
@@ -45,6 +49,14 @@ export function TerminalPage() {
 
   const hosts = hostsQuery.data ?? [];
   const host = hosts.find((h) => h.id === hostId) ?? null;
+  const hostCredsQuery = useQuery({
+    queryKey: ['host-credentials', hostId],
+    queryFn: () => api.get<HostCredentialLink[]>(`/api/v1/hosts/${hostId}/credentials`),
+    enabled: !!hostId,
+  });
+  const selectableCredentials = (hostCredsQuery.data ?? []).filter(
+    (c) => c.type === 'password' || c.type === 'ssh_key',
+  );
 
   useEffect(() => {
     if (hosts.length && !hosts.some((h) => h.id === hostId)) setHostId(hosts.at(0)!.id);
@@ -94,7 +106,8 @@ export function TerminalPage() {
     term.writeln('正在建立 SSH 会话…');
 
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${proto}://${location.host}/api/v1/hosts/${host.id}/terminal`);
+    const query = credentialId ? `?credentialId=${encodeURIComponent(credentialId)}` : '';
+    const socket = new WebSocket(`${proto}://${location.host}/api/v1/hosts/${host.id}/terminal${query}`);
     setStatus('connecting');
     socket.onopen = () => {
       if (disposed) return;
@@ -143,7 +156,7 @@ export function TerminalPage() {
       termRef.current = null;
       if (container) container.innerHTML = '';
     };
-  }, [host?.id, retry, connected]);
+  }, [host?.id, credentialId, retry, connected]);
 
   return (
     <>
@@ -189,6 +202,7 @@ export function TerminalPage() {
                 value={hostId}
                 onValueChange={(v) => {
                   setHostId(v);
+                  setCredentialId('');
                   setConnected(false);
                 }}
                 disabled={!hosts.length}
@@ -200,6 +214,29 @@ export function TerminalPage() {
                   {hosts.map((h) => (
                     <SelectItem key={h.id} value={h.id}>
                       {h.name} · {h.address} · {h.sshUser}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-[240px]">
+              <Select
+                value={credentialId || AUTO_AUTH}
+                onValueChange={(v) => {
+                  setCredentialId(v === AUTO_AUTH ? '' : v);
+                  setConnected(false);
+                }}
+                disabled={!host || !selectableCredentials.length}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="自动选择凭据" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={AUTO_AUTH}>自动选择（主凭据优先）</SelectItem>
+                  {selectableCredentials.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                      {c.lastCheckOk === false ? '（已失效）' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

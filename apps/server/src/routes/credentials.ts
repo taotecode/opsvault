@@ -13,6 +13,7 @@ import {
   updateCredential,
 } from '../services/credentials.js';
 import { generatePassword, passwordStrength } from '../lib/crypto.js';
+import { testCredentialAgainstHosts } from '../services/credentialChecks.js';
 import { actorFromRequest } from '../lib/actor.js';
 import { denyAgent, getAuth, requireRole, scopeCheck } from '../lib/permissions.js';
 import { parseBody } from '../lib/validate.js';
@@ -58,6 +59,17 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     }
     const { id } = req.params as { id: string };
     return { data: await revealCredential(app.db, app.config, id, actorFromRequest(req)) };
+  });
+
+  app.post('/api/v1/credentials/:id/test', async (req) => {
+    scopeCheck('credentials:write')(req);
+    denyAgent(req);
+    requireRole(req, ['admin', 'operator']);
+    const { id } = req.params as { id: string };
+    const hostIds = Array.isArray((req.body as { hostIds?: string[] } | undefined)?.hostIds)
+      ? (req.body as { hostIds: string[] }).hostIds
+      : undefined;
+    return { data: await testCredentialAgainstHosts(app.db, app.config, id, hostIds, actorFromRequest(req)) };
   });
 
   app.post('/api/v1/credentials/generate-password', async (req) => {

@@ -68,7 +68,9 @@ export function openApiSpec(baseUrl = 'http://localhost:8080') {
       patch: op('hosts.update', '更新服务器（含手动字段）', 'write', ['hosts'], ['id']),
       delete: op('hosts.delete', '删除服务器', 'write', ['hosts'], ['id']),
     },
-    '/api/v1/hosts/{id}/probe': { post: op('hosts.probe', 'SSH 探测并写入快照', 'write', ['hosts'], ['id']) },
+    '/api/v1/hosts/{id}/probe': { post: op('hosts.probe', 'SSH 探测并写入快照（可选 credentialId/keypairId 手动指定认证）', 'write', ['hosts'], ['id']) },
+    '/api/v1/hosts/{id}/credentials': { get: op('hosts.credentials', '该主机关联的凭据及各自检测状态', 'read', ['hosts'], ['id']) },
+    '/api/v1/hosts/{id}/credentials/{credentialId}/primary': { post: op('hosts.setPrimaryCredential', '设为该主机的主凭据（Agent 403）', 'write', ['hosts'], ['id', 'credentialId']) },
     '/api/v1/hosts/batch-probe': { post: op('hosts.batchProbe', '批量探测', 'write', ['hosts']) },
     '/api/v1/hosts/{id}/snapshots': { get: op('hosts.snapshots', '探测快照列表', 'read', ['hosts'], ['id']) },
     '/api/v1/credentials': {
@@ -80,6 +82,7 @@ export function openApiSpec(baseUrl = 'http://localhost:8080') {
       delete: op('credentials.delete', '删除凭据', 'write', ['credentials'], ['id']),
     },
     '/api/v1/credentials/{id}/reveal': { post: op('credentials.reveal', '查看凭据明文（需二次验证；Agent 403）', 'sensitive', ['credentials'], ['id']) },
+    '/api/v1/credentials/{id}/test': { post: op('credentials.test', '逐主机检测凭据可用性并记录状态（Agent 403）', 'write', ['credentials'], ['id']) },
     '/api/v1/credentials/generate-password': { post: op('credentials.generatePassword', '生成强密码（需 credentials:write）', 'write', ['credentials']) },
     '/api/v1/keypairs': { get: op('keypairs.list', '密钥列表（含部署与验证状态）', 'read', ['keypairs']) },
     '/api/v1/keypairs/generate': { post: op('keypairs.create', '生成 Ed25519 / RSA 密钥对', 'write', ['keypairs']) },

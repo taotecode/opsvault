@@ -209,7 +209,7 @@ export async function createHost(
   if (input.credentialId) {
     await db
       .insertInto('host_credentials')
-      .values({ host_id: id, credential_id: input.credentialId, role: 'primary' })
+      .values({ host_id: id, credential_id: input.credentialId, role: 'primary', created_at: new Date().toISOString() })
       .onConflict((oc) => oc.doNothing())
       .execute();
   }
@@ -283,7 +283,7 @@ export async function patchHost(
       if (patch.credentialId) {
         await trx
           .insertInto('host_credentials')
-          .values({ host_id: id, credential_id: patch.credentialId, role: 'primary' })
+          .values({ host_id: id, credential_id: patch.credentialId, role: 'primary', created_at: new Date().toISOString() })
           .onConflict((oc) => oc.doNothing())
           .execute();
       }

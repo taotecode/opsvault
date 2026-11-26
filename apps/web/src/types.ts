@@ -72,9 +72,36 @@ export interface Credential {
   fingerprint: string | null;
   hostCount: number;
   hosts: string[];
+  hostIds?: string[];
   createdAt: string;
   updatedAt: string;
   updatedBy: string;
+  checkSummary?: {
+    usable: number;
+    failed: number;
+    unchecked: number;
+    lastCheckedAt: string | null;
+  } | null;
+}
+
+/** 主机维度的关联凭据（含对该主机的最近验证状态）。 */
+export interface HostCredentialLink {
+  id: string;
+  name: string;
+  type: Credential['type'];
+  strength: Credential['strength'];
+  role: 'primary' | 'linked' | string;
+  lastCheckOk: boolean | null;
+  lastCheckError: string | null;
+  lastCheckedAt: string | null;
+}
+
+export interface CredentialCheckResult {
+  hostId: string;
+  hostName: string;
+  ok: boolean;
+  error?: string;
+  checkedAt: string;
 }
 
 export interface KeypairHost {

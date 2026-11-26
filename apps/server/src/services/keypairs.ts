@@ -11,8 +11,8 @@ import {
   execRemote,
   openSsh,
   persistHostFingerprint,
-  resolveHostAuth,
 } from '../lib/ssh.js';
+import { collectAuthCandidates, openWithFallback } from '../lib/authCandidates.js';
 import {
   generateSshKeyPair,
   parsePublicKey,
@@ -339,10 +339,11 @@ export async function deployKeypair(
     try {
       const host = await getHostRow(db, hostId);
       hostName = host.name;
-      const auth = await resolveHostAuth(db, config, host);
-      const opened = await openSsh(host, auth, host.host_key_fp);
+      const candidates = await collectAuthCandidates(db, config, host);
+      const opened = await openWithFallback(db, host, candidates, host.host_key_fp, async (_current, observed) => {
+        await persistHostFingerprint(db, host.id, null, observed);
+      });
       try {
-        await persistHostFingerprint(db, host.id, host.host_key_fp, opened.fingerprint);
         const res = await execRemote(opened.client, cmd, 15_000);
         if (res.code !== 0) {
           throw errors.sshConnect(`部署命令失败（退出码 ${res.code ?? 'unknown'}）`);

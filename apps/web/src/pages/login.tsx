@@ -7,7 +7,6 @@ import type { z } from 'zod';
 import { APP_VERSION, loginSchema } from '@opsvault/shared';
 import { toast } from 'sonner';
 import { ArrowRight } from 'lucide-react';
-import LiquidGlass from 'liquid-glass-react';
 import { api, ApiError } from '@/lib/api';
 import { useMe, useSetupStatus } from '@/lib/hooks';
 import { Button, Input } from '@/components/ui/controls';
@@ -62,43 +61,46 @@ export function LoginPage() {
               <div className="text-[11px] text-[var(--ink-3)]">服务器资产管理平台</div>
             </div>
           </div>
-          <LiquidGlass className="w-full" cornerRadius={24} padding="0" blurAmount={0.08} saturation={1.25} displacementScale={30} mode="standard">
-            <div className="glass-panel border-white/40 p-6">
-              <h1 className="text-[16px] font-semibold">登录</h1>
-              <p className="mt-1 text-[11.5px] text-[var(--ink-3)]">凭据加密存储 · 全量审计 · Agent Ready</p>
-              <form className="mt-5 space-y-3" onSubmit={onSubmit}>
+          <div className="glass-panel w-full border-white/40 p-6">
+            <h1 className="text-[16px] font-semibold">登录</h1>
+            <p className="mt-1 text-[11.5px] text-[var(--ink-3)]">凭据加密存储 · 全量审计 · Agent Ready</p>
+            <form className="mt-5 space-y-3" onSubmit={onSubmit}>
+              <div>
+                <label htmlFor="login-account" className="mb-1 block text-[11.5px] text-[var(--ink-3)]">邮箱或用户名</label>
+                <Input
+                  id="login-account"
+                  autoComplete="username"
+                  placeholder="admin@example.com 或 admin"
+                  {...form.register('email')}
+                />
+                {form.formState.errors.email ? <p className="mt-1 text-[11px] text-[var(--bad)]">{form.formState.errors.email.message}</p> : null}
+              </div>
+              <div>
+                <label htmlFor="login-password" className="mb-1 block text-[11.5px] text-[var(--ink-3)]">密码</label>
+                <Input id="login-password" type="password" autoComplete="current-password" placeholder="登录密码" {...form.register('password')} />
+              </div>
+              {needsTotp ? (
                 <div>
-                  <label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">邮箱</label>
-                  <Input type="email" autoComplete="username" placeholder="admin@example.com" {...form.register('email')} />
-                  {form.formState.errors.email ? <p className="mt-1 text-[11px] text-[var(--bad)]">{form.formState.errors.email.message}</p> : null}
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">密码</label>
-                  <Input type="password" autoComplete="current-password" placeholder="登录密码" {...form.register('password')} />
-                </div>
-                {needsTotp ? (
-                  <div>
-                    <label className="mb-1 block text-[11.5px] text-[var(--ink-3)]">TOTP 动态口令</label>
-                    <Input inputMode="numeric" autoComplete="one-time-code" placeholder="6 位验证码" {...form.register('totp')} />
-                    <p className="mt-1 text-[11px] text-[var(--ink-3)]">该账号已启用二次验证</p>
-                  </div>
-                ) : null}
-                <Button type="submit" variant="primary" className="mt-1 w-full" disabled={form.formState.isSubmitting}>
-                  登录 <ArrowRight size={14} />
-                </Button>
-              </form>
-              {setup.data && !setup.data.installed ? (
-                <div className="mt-4">
-                  <Callout tone="warn">
-                    平台尚未安装。<Link to="/setup" className="underline">进入安装向导</Link>
-                  </Callout>
+                  <label htmlFor="login-totp" className="mb-1 block text-[11.5px] text-[var(--ink-3)]">TOTP 动态口令</label>
+                  <Input id="login-totp" inputMode="numeric" autoComplete="one-time-code" placeholder="6 位验证码" {...form.register('totp')} />
+                  <p className="mt-1 text-[11px] text-[var(--ink-3)]">该账号已启用二次验证</p>
                 </div>
               ) : null}
-              <div className="mt-4 text-center text-[11px] text-[var(--ink-3)]">
-                OpsVault · MIT 开源 · v{setup.data?.version ?? APP_VERSION}
+              <Button type="submit" variant="primary" className="mt-1 w-full" disabled={form.formState.isSubmitting}>
+                登录 <ArrowRight size={14} />
+              </Button>
+            </form>
+            {setup.data && !setup.data.installed ? (
+              <div className="mt-4">
+                <Callout tone="warn">
+                  平台尚未安装。<Link to="/setup" className="underline">进入安装向导</Link>
+                </Callout>
               </div>
+            ) : null}
+            <div className="mt-4 text-center text-[11px] text-[var(--ink-3)]">
+              OpsVault · MIT 开源 · v{setup.data?.version ?? APP_VERSION}
             </div>
-          </LiquidGlass>
+          </div>
         </div>
       </div>
     </div>

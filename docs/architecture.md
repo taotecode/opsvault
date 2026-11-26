@@ -38,6 +38,7 @@
 
 - 信封加密：每条凭据随机 DEK，DEK 由 MASTER_KEY（AES-256-GCM）加密；数据表只存密文。
 - reveal 需要登录会话且在 5 分钟二次验证窗口内；审计记录到 `audit_logs`。
+- 多凭据与自动回退：一台主机可关联多条凭据（`host_credentials`，role=primary/linked）。连接时依次尝试 主机密钥对 → 手动指定凭据 → 主凭据 → 其他关联凭据，首个成功即建立会话，每次结果写回 `last_check_ok/last_check_error/last_checked_at` 供列表展示。手动指定（探测 body 或终端 `?credentialId=`）不触发回退，便于定位失效密码。
 - 密钥生成调用系统 `ssh-keygen`（OpenSSH 格式，ssh2 可直接使用）；导入支持 OpenSSH 私钥与 RSA PKCS#1，Ed25519 PKCS#8 会给出明确提示；带口令私钥通过 `ssh-keygen -p` 去口令后重新加密存储。
 - 密钥私钥仅在生成时返回一次；后续导出需二次验证。快速连接命令只含地址/端口/用户名。
 

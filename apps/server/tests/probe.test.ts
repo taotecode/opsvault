@@ -8,6 +8,7 @@ import { createDatabase, migrateToLatest } from '../src/db/database.js';
 import type { DatabaseSchema } from '../src/db/types.js';
 import { systemActor } from '../src/lib/actor.js';
 import { createHost } from '../src/services/hosts.js';
+import { createCredential } from '../src/services/credentials.js';
 import { probeHost } from '../src/services/probe.js';
 
 const FIXTURE = `@@HOSTNAME@@
@@ -44,18 +45,22 @@ const sshState = vi.hoisted(() => ({
   fail: null as Error | null,
 }));
 
-vi.mock('../src/lib/ssh.js', () => ({
-  resolveHostAuth: vi.fn(async () => ({ username: 'root', password: 'x', privateKey: undefined })),
-  openSsh: vi.fn(async () => ({
-    client: { end: vi.fn() },
-    fingerprint: 'SHA256:probe-test',
-  })),
-  persistHostFingerprint: vi.fn(async () => undefined),
-  execRemote: vi.fn(async () => {
-    if (sshState.fail) throw sshState.fail;
-    return { stdout: sshState.stdout };
-  }),
-}));
+vi.mock('../src/lib/ssh.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/ssh.js')>();
+  return {
+    ...actual,
+    resolveHostAuth: vi.fn(async () => ({ username: 'root', password: 'x', privateKey: undefined })),
+    openSsh: vi.fn(async () => ({
+      client: { end: vi.fn() },
+      fingerprint: 'SHA256:probe-test',
+    })),
+    persistHostFingerprint: vi.fn(async () => undefined),
+    execRemote: vi.fn(async () => {
+      if (sshState.fail) throw sshState.fail;
+      return { stdout: sshState.stdout };
+    }),
+  };
+});
 
 let dir: string;
 let config: AppConfig;
@@ -101,6 +106,17 @@ describe('probe engine', () => {
       },
       systemActor('test'),
     );
+    const credential = await createCredential(
+      db,
+      config,
+      { name: 'probe-cred', type: 'password', value: 'ProbePass1!', hostIds: [host.id] },
+      systemActor('test'),
+    );
+    await db
+      .updateTable('hosts')
+      .set({ credential_id: credential.id })
+      .where('id', '=', host.id)
+      .execute();
 
     const first = await probeHost(db, config, host.id, systemActor('test'));
     expect(first.partial).toEqual([]);
@@ -154,6 +170,17 @@ describe('probe engine', () => {
       { name: 'probe-fail', address: '203.0.113.11', port: 22, sshUser: 'root', env: 'dev' },
       systemActor('test'),
     );
+    const failCredential = await createCredential(
+      db,
+      config,
+      { name: 'probe-fail-cred', type: 'password', value: 'ProbePass2!', hostIds: [host.id] },
+      systemActor('test'),
+    );
+    await db
+      .updateTable('hosts')
+      .set({ credential_id: failCredential.id })
+      .where('id', '=', host.id)
+      .execute();
 
     await expect(probeHost(db, config, host.id, systemActor('test'))).rejects.toThrow('connect timeout');
 

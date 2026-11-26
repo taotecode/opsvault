@@ -157,6 +157,10 @@ const migrations: Record<string, Migration> = {
           c.notNull().references('credentials.id').onDelete('cascade'),
         )
         .addColumn('role', 'text', (c) => c.notNull().defaultTo('primary'))
+        .addColumn('created_at', 'text', (c) => c.notNull().defaultTo('1970-01-01T00:00:00.000Z'))
+        .addColumn('last_check_ok', 'integer')
+        .addColumn('last_check_error', 'text')
+        .addColumn('last_checked_at', 'text')
         .addPrimaryKeyConstraint('host_credentials_pk', ['host_id', 'credential_id'])
         .execute();
 
@@ -249,6 +253,56 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropTable('users').ifExists().execute();
     },
   },
+  '002_credential_checks': {
+    async up(db) {
+      // 双方言判断列是否存在（Kysely introspection），避免新库 001 已建列时重复 ALTER
+      const tables = await db.introspection.getTables();
+      const table = tables.find((t) => t.name === 'host_credentials');
+      const has = (col: string): boolean => !!table?.columns.some((c) => c.name === col);
+
+      if (!has('created_at')) {
+        await db.schema
+          .alterTable('host_credentials')
+          .addColumn('created_at', 'text', (c) => c.notNull().defaultTo('1970-01-01T00:00:00.000Z'))
+          .execute();
+      }
+      if (!has('last_check_ok')) {
+        await db.schema.alterTable('host_credentials').addColumn('last_check_ok', 'integer').execute();
+      }
+      if (!has('last_check_error')) {
+        await db.schema.alterTable('host_credentials').addColumn('last_check_error', 'text').execute();
+      }
+      if (!has('last_checked_at')) {
+        await db.schema.alterTable('host_credentials').addColumn('last_checked_at', 'text').execute();
+      }
+
+      // 把旧的单一 credential_id 关联补进关联表（幂等）
+      const hosts = await db
+        .selectFrom('hosts')
+        .select(['id', 'credential_id', 'created_at'])
+        .where('credential_id', 'is not', null)
+        .execute();
+      for (const host of hosts) {
+        await db
+          .insertInto('host_credentials')
+          .values({
+            host_id: host.id,
+            credential_id: host.credential_id!,
+            role: 'primary',
+            created_at: host.created_at,
+          })
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+      }
+    },
+    async down(db) {
+      const tables = await db.introspection.getTables();
+      const cols = new Set(tables.find((t) => t.name === 'host_credentials')?.columns.map((c) => c.name) ?? []);
+      for (const col of ['last_checked_at', 'last_check_error', 'last_check_ok', 'created_at']) {
+        if (cols.has(col)) await db.schema.alterTable('host_credentials').dropColumn(col).execute();
+      }
+    },
+  },
 };
 
 class Provider {
@@ -261,7 +315,7 @@ export async function migrateToLatest(db: Kysely<DatabaseSchema>): Promise<void>
   const migrator = new Migrator({ db, provider: new Provider(), migrationTableName: 'schema_migrations', migrationLockTableName: 'schema_migrations_lock' });
   const { error, results } = await migrator.migrateToLatest();
   for (const r of results ?? []) {
-    if (r.status === 'Error') throw new Error(`migration failed: ${r.migrationName}`);
+    if (r.status === 'Error') throw error ?? new Error(`migration failed: ${r.migrationName}`);
   }
   if (error) throw error;
 }

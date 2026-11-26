@@ -6,14 +6,15 @@
 - 浏览器：登录成功后使用 `ov_session` Cookie；写操作需带 `x-csrf-token`（值见 `ov_csrf` Cookie）。
 - Agent/脚本：`Authorization: Bearer ovt_…`。Agent 令牌默认只读，写 scope 需显式授予：
   hosts:read / hosts:write / credentials:read / keypairs:read / audit:read / system:read（Agent 不支持 keypairs:write 与 credentials:write）。
-- 严禁操作：`POST /credentials/{id}/reveal`、`POST /keypairs/{id}/private-key`、Web 终端——Agent 调用一律 403。
+- 严禁操作：`POST /credentials/{id}/reveal`、`POST /credentials/{id}/test`、`POST /hosts/{id}/credentials/{credentialId}/primary`、`POST /keypairs/{id}/private-key`、Web 终端——Agent 调用一律 403。
 - 所有 Agent 调用（含读取）都会写审计（actor_kind=agent）。
 
 ## 常用端点
 - `GET /hosts?env=prod&status=online&fields=id,name,status,expiresAt` — 资产列表（cursor 分页）
 - `GET /hosts/{id}` — 详情（自动探测字段 + 手动字段）
-- `POST /hosts/{id}/probe` — 触发 SSH 探测（hosts:write）
-- `GET /credentials` — 凭据元数据（永不含明文）
+- `POST /hosts/{id}/probe` — 触发 SSH 探测（hosts:write）；可选 `credentialId` / `keypairId` 指定认证，缺省按「密钥对 → 主凭据 → 其他关联凭据」自动回退
+- `GET /hosts/{id}/credentials` — 该主机关联的每条凭据及其最近检测状态（usable / failed / unchecked）
+- `GET /credentials` — 凭据元数据（永不含明文），含 `checkSummary` 各主机可用性概况
 - `GET /keypairs` — 密钥列表（含部署/验证状态，不含私钥）
 - `GET /keypairs/{id}/connect-command?hostId=…` — ssh/scp 命令（不含密钥内容）
 - `GET /audit?category=auth&limit=20` — 审计日志（audit:read）

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Braces, Copy, Eye, FileBadge, FileKey, KeyRound, Lock, Plus, Search, Shield, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { Braces, Copy, Eye, FileBadge, FileKey, KeyRound, Lock, Pencil, Plus, Search, Shield, ShieldCheck, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { api, type ApiError } from '@/lib/api';
 import { useMe } from '@/lib/hooks';
-import type { Credential } from '@/types';
+import type { Credential, CredentialCheckResult } from '@/types';
 import { PageHeader, GlassPanel, EmptyState, Callout, CopyButton } from '@/components/common/primitives';
 import { DataTable } from '@/components/common/data-table';
 import { Badge, StrengthBadge } from '@/components/common/badges';
@@ -13,6 +13,7 @@ import { ConfirmDialog, ReauthDialog } from '@/components/common/dialogs';
 import { Modal } from '@/components/ui/modal';
 import { Button, Input } from '@/components/ui/controls';
 import { CredentialCreateDialog } from '@/components/common/credential-create-dialog';
+import { CredentialEditDialog } from '@/components/common/credential-edit-dialog';
 import { copyText, formatDateTime, toastError } from '@/lib/format';
 
 type CredentialType = Credential['type'];
@@ -45,6 +46,8 @@ export function CredentialsPage() {
   const [secret, setSecret] = useState<{ name: string; type: string; value: string; strength: Credential['strength'] } | null>(null);
   const [remaining, setRemaining] = useState(10);
   const [deleteTarget, setDeleteTarget] = useState<Credential | null>(null);
+  const [editTarget, setEditTarget] = useState<Credential | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   const credentialsQuery = useQuery({
     queryKey: ['credentials'],
@@ -144,6 +147,27 @@ export function CredentialsPage() {
         ),
     },
     {
+      id: 'check',
+      header: '可用状态',
+      cell: ({ row }) => {
+        const summary = row.original.checkSummary;
+        const failed = summary?.failed ?? 0;
+        const usable = summary?.usable ?? 0;
+        const unchecked = summary?.unchecked ?? 0;
+        if (!summary) return <span className="muted">未关联</span>;
+        if (failed > 0) {
+          return (
+            <Badge tone="bad">
+              失效 {failed} 台{failed === 1 && usable === 0 ? '（需更新）' : ''}
+            </Badge>
+          );
+        }
+        if (usable > 0) return <Badge tone="ok">可用 {usable} 台</Badge>;
+        if (unchecked > 0) return <Badge tone="neutral">未检测 {unchecked} 台</Badge>;
+        return <span className="muted">—</span>;
+      },
+    },
+    {
       id: 'updatedAt',
       header: '最近更新',
       cell: ({ row }) => <span className="mono text-[11.5px] text-[var(--ink-3)]">{formatDateTime(row.original.updatedAt)}</span>,
@@ -156,6 +180,17 @@ export function CredentialsPage() {
         <div className="flex justify-end gap-0.5">
           {canReveal ? (
             <>
+              <button
+                type="button"
+                className="icon-btn"
+                title="检测该凭据在每个关联主机上的可用性"
+                aria-label="检测凭据可用性"
+                disabled={testingId === row.original.id || row.original.type === 'certificate' || row.original.type === 'custom' || row.original.type === 'api_token'}
+                onClick={() => void testCredential(row.original)}
+              >
+                <ShieldCheck size={14} className={testingId === row.original.id ? 'animate-pulse' : undefined} />
+              </button>
+              <button type="button" className="icon-btn" title="编辑名称/内容/关联" aria-label="编辑凭据" onClick={() => setEditTarget(row.original)}><Pencil size={14} /></button>
               <button type="button" className="icon-btn" title="查看（需验证）" aria-label="查看凭据" onClick={() => beginReveal(row.original, 'view')}><Eye size={14} /></button>
               <button type="button" className="icon-btn" title="复制（需验证）" aria-label="复制凭据" onClick={() => beginReveal(row.original, 'copy')}><Copy size={14} /></button>
               <button type="button" className="icon-btn" title="删除" aria-label="删除凭据" onClick={() => setDeleteTarget(row.original)}><Trash2 size={14} /></button>
@@ -172,6 +207,27 @@ export function CredentialsPage() {
 
   const emptyTitle = filter === 'certificate' ? '还没有证书类型的凭据' : filter === 'all' ? '还没有凭据' : `还没有${TYPE_META[filter].label}类型的凭据`;
   const emptyDescription = filter === 'certificate' ? '登记 TLS / 客户端证书后，可关联到服务器；查看明文同样需要二次验证。' : '登记后可关联到服务器；查看与轮换都会写入审计日志。';
+
+  const testCredential = async (cred: Credential) => {
+    setTestingId(cred.id);
+    try {
+      const results = await api.post<CredentialCheckResult[]>(`/api/v1/credentials/${cred.id}/test`, {});
+      const failed = results.filter((r) => !r.ok);
+      void queryClient.invalidateQueries({ queryKey: ['credentials'] });
+      void queryClient.invalidateQueries({ queryKey: ['hosts'] });
+      void queryClient.invalidateQueries({ queryKey: ['audit'] });
+      if (!results.length) toast.info('该凭据尚未关联服务器', { description: '先关联主机后再检测' });
+      else if (failed.length) {
+        toast.error(`检测完成：${failed.length} 台失败`, {
+          description: failed.map((r) => `${r.hostName}: ${r.error ?? '认证失败'}`).join('；').slice(0, 220),
+        });
+      } else toast.success(`检测完成：${results.length} 台全部可用`);
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setTestingId(null);
+    }
+  };
 
   const deleteCredential = async () => {
     if (!deleteTarget) return;
@@ -265,6 +321,7 @@ export function CredentialsPage() {
       </Callout>
 
       <CredentialCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CredentialEditDialog credential={editTarget} onOpenChange={(o) => !o && setEditTarget(null)} />
 
       <ReauthDialog
         open={reauthOpen}

@@ -6,10 +6,10 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { ExternalLink, Globe, KeyRound, Plus, Terminal, Trash2, X } from 'lucide-react';
+import { ExternalLink, Globe, KeyRound, Plus, ShieldCheck, Star, Terminal, Trash2, X } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import { formatDateTime, formatRelative, toastError } from '@/lib/format';
-import type { Credential, Host, Keypair, QuickConnect } from '@/types';
+import type { Credential, CredentialCheckResult, Host, HostCredentialLink, Keypair, QuickConnect } from '@/types';
 import { Drawer, Modal } from '@/components/ui/modal';
 import { Button, Input, Textarea } from '@/components/ui/controls';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -190,16 +190,22 @@ interface Snapshot {
   createdAt: string;
 }
 
+const AUTO_AUTH = '__auto';
+
 export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | null; onClose: () => void; readOnly?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const open = !!hostId;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [quick, setQuick] = useState<QuickConnect | null>(null);
+  /** '__auto' 表示按主凭据优先自动回退；具体 id 表示本次只用手动选择的凭据 */
+  const [authChoice, setAuthChoice] = useState<string>(AUTO_AUTH);
+  const [testingLink, setTestingLink] = useState<string | null>(null);
 
   useEffect(() => {
     setConfirmDelete(false);
     setQuick(null);
+    setAuthChoice(AUTO_AUTH);
   }, [hostId]);
 
   const hostQuery = useQuery({
@@ -210,6 +216,11 @@ export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | nul
   const credentials = useQuery({
     queryKey: ['credentials'],
     queryFn: () => api.get<Credential[]>('/api/v1/credentials'),
+    enabled: open,
+  });
+  const hostCredentials = useQuery({
+    queryKey: ['host-credentials', hostId],
+    queryFn: () => api.get<HostCredentialLink[]>(`/api/v1/hosts/${hostId}/credentials`),
     enabled: open,
   });
   const keypairs = useQuery({
@@ -225,26 +236,61 @@ export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | nul
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['host', hostId] });
+    void queryClient.invalidateQueries({ queryKey: ['host-credentials', hostId] });
     void queryClient.invalidateQueries({ queryKey: ['host-snapshots', hostId] });
     void queryClient.invalidateQueries({ queryKey: ['hosts'] });
+    void queryClient.invalidateQueries({ queryKey: ['credentials'] });
     void queryClient.invalidateQueries({ queryKey: ['audit'] });
   };
 
   const probe = useMutation({
     mutationFn: () => {
       if (!hostId) throw new Error('缺少服务器 ID');
-      return api.post<{ host: Host; partial: string[] }>(`/api/v1/hosts/${hostId}/probe`);
+      const body = authChoice === AUTO_AUTH ? {} : { credentialId: authChoice };
+      return api.post<{ host: Host; partial: string[] }>(`/api/v1/hosts/${hostId}/probe`, body);
     },
     onSuccess: (res) => {
       refresh();
+      const manual = authChoice === AUTO_AUTH ? '' : '（手动凭据）';
       toast.success('探测完成', {
-        description: res.partial.length ? `部分字段失败：${res.partial.join('、')}` : `${res.host.name} · 字段已更新`,
+        description: res.partial.length
+          ? `部分字段失败：${res.partial.join('、')}`
+          : `${res.host.name}${manual} · 字段已更新`,
       });
     },
     onError: (e) => {
       refresh();
       toastError(e);
     },
+  });
+
+  const setPrimary = useMutation({
+    mutationFn: (credentialId: string) => {
+      if (!hostId) throw new Error('缺少服务器 ID');
+      return api.post<{ ok: boolean }>(`/api/v1/hosts/${hostId}/credentials/${credentialId}/primary`);
+    },
+    onSuccess: () => {
+      refresh();
+      setAuthChoice(AUTO_AUTH);
+      toast.success('已设为主凭据', { description: '连接时优先尝试该凭据，失败后自动回退到其他凭据' });
+    },
+    onError: toastError,
+  });
+
+  const testCredential = useMutation({
+    mutationFn: (credentialId: string) => {
+      setTestingLink(credentialId);
+      return api.post<CredentialCheckResult[]>(`/api/v1/credentials/${credentialId}/test`, { hostIds: hostId ? [hostId] : [] });
+    },
+    onSuccess: (results) => {
+      refresh();
+      const result = results[0];
+      if (!result) toast.info('该凭据未关联本主机');
+      else if (result.ok) toast.success('凭据可用', { description: `已在 ${result.hostName} 上验证通过 SSH 登录` });
+      else toast.error('凭据不可用', { description: result.error ?? '认证失败' });
+    },
+    onError: toastError,
+    onSettled: () => setTestingLink(null),
   });
 
   const connect = useMutation({
@@ -274,10 +320,15 @@ export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | nul
   });
 
   const host = hostQuery.data;
+  const links = useMemo(() => hostCredentials.data ?? [], [hostCredentials.data]);
   const relatedCredentials = useMemo(() => {
     if (!host) return [];
     return (credentials.data ?? []).filter((c) => c.id === host.credentialId || (c.hosts ?? []).includes(host.name));
   }, [credentials.data, host]);
+  const selectableCredentials = useMemo(() => {
+    const ids = new Set(links.map((l) => l.id));
+    return (credentials.data ?? []).filter((c) => ids.has(c.id) && (c.type === 'password' || c.type === 'ssh_key'));
+  }, [credentials.data, links]);
   const relatedKeypair = useMemo(
     () => (host?.keypairId ? (keypairs.data ?? []).find((k) => k.id === host.keypairId) ?? null : null),
     [keypairs.data, host?.keypairId],
@@ -303,12 +354,18 @@ export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | nul
               <X size={15} />
             </button>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {readOnly ? null : (
               <Button
                 size="sm"
                 disabled={!host}
-                onClick={() => navigate(`/terminal?hostId=${encodeURIComponent(hostId ?? '')}`)}
+                onClick={() =>
+                  navigate(
+                    `/terminal?hostId=${encodeURIComponent(hostId ?? '')}${
+                      authChoice === AUTO_AUTH ? '' : `&credentialId=${encodeURIComponent(authChoice)}`
+                    }`,
+                  )
+                }
               >
                 <Terminal size={13} />
                 打开终端
@@ -325,7 +382,33 @@ export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | nul
                 {probe.isPending ? '探测中…' : '立即探测'}
               </Button>
             )}
+            {readOnly || !selectableCredentials.length ? null : (
+              <div className="w-[210px]">
+                <Select
+                  value={authChoice}
+                  onValueChange={setAuthChoice}
+                  disabled={!host || probe.isPending}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={AUTO_AUTH}>自动选择（主凭据优先）</SelectItem>
+                    {selectableCredentials.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+          {authChoice === AUTO_AUTH ? null : (
+            <p className="mt-1.5 text-[10.5px] text-[var(--warn)]">
+              已手动指定凭据，本次探测/终端只尝试该凭据，不会自动回退。
+            </p>
+          )}
         </div>
         {host ? (
           <Tabs defaultValue="overview" key={host.id} className="flex min-h-0 flex-1 flex-col">
@@ -374,12 +457,66 @@ export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | nul
                   <div>
                     <div className="mb-2 flex items-center gap-2">
                       <h4 className="text-[12.5px] font-semibold">关联凭据</h4>
-                      <Badge tone="neutral">{relatedCredentials.length} 个</Badge>
+                      <Badge tone="neutral">{links.length || relatedCredentials.length} 个</Badge>
                       <Button size="sm" className="ml-auto" onClick={() => navigate('/credentials')}>
                         管理凭据
                       </Button>
                     </div>
-                    {relatedCredentials.length ? (
+                    {links.length ? (
+                      <div className="space-y-1.5">
+                        {links.map((link) => {
+                          const primary = link.role === 'primary';
+                          const checkable = link.type === 'password' || link.type === 'ssh_key';
+                          const state = link.lastCheckOk === null ? 'unchecked' : link.lastCheckOk ? 'ok' : 'bad';
+                          return (
+                            <div key={link.id} className="glass-inset px-3 py-2">
+                              <div className="flex items-center gap-2.5">
+                                <KeyRound size={14} className="shrink-0 text-[var(--ink-3)]" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="truncate text-[12.5px]">{link.name}</span>
+                                    {primary ? <Badge tone="brand">主凭据</Badge> : null}
+                                    {state === 'ok' ? <Badge tone="ok">可用</Badge> : null}
+                                    {state === 'bad' ? <Badge tone="bad">失效</Badge> : null}
+                                    {state === 'unchecked' ? <Badge tone="neutral">未检测</Badge> : null}
+                                  </div>
+                                  {state === 'bad' && link.lastCheckError ? (
+                                    <div className="mt-0.5 line-clamp-2 text-[10.5px] text-[var(--bad)]">{link.lastCheckError}</div>
+                                  ) : null}
+                                  <div className="text-[10.5px] text-[var(--ink-3)]">
+                                    {link.type === 'password' ? '密码' : link.type === 'ssh_key' ? 'SSH 私钥' : link.type}
+                                    {link.lastCheckedAt ? ` · 检测于 ${formatRelative(link.lastCheckedAt)}` : ''}
+                                  </div>
+                                </div>
+                                {link.strength ? <StrengthBadge strength={link.strength} /> : null}
+                              </div>
+                              {readOnly ? null : checkable ? (
+                                <div className="mt-1.5 flex justify-end gap-1.5">
+                                  <Button
+                                    size="sm"
+                                   disabled={testingLink === link.id}
+                                    onClick={() => testCredential.mutate(link.id)}
+                                  >
+                                    <ShieldCheck size={12} />
+                                    检测
+                                  </Button>
+                                  {primary ? null : (
+                                    <Button
+                                      size="sm"
+                                      disabled={setPrimary.isPending}
+                                      onClick={() => setPrimary.mutate(link.id)}
+                                    >
+                                      <Star size={12} />
+                                      设为主凭据
+                                    </Button>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : relatedCredentials.length ? (
                       <div className="space-y-1.5">
                         {relatedCredentials.map((c) => (
                           <div key={c.id} className="glass-inset flex items-center gap-2.5 px-3 py-2">
@@ -401,6 +538,11 @@ export function HostDrawer({ hostId, onClose, readOnly }: { hostId: string | nul
                     ) : (
                       <Callout>尚未关联凭据。可在凭据保险库中创建并关联到该服务器。</Callout>
                     )}
+                    {links.length ? (
+                      <p className="mt-1.5 text-[10.5px] text-[var(--ink-3)]">
+                        连接时按「主机密钥对 → 主凭据 → 其余关联凭据」顺序自动尝试；失效凭据会被跳过并在上方标注。
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <div className="mb-2 flex items-center gap-2">

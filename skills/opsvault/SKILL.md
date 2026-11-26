@@ -57,7 +57,7 @@ api.sh version
 
 ## 安全规则（硬性）
 
-1. 永不调用 `credentials/{id}/reveal` 或 `keypairs/{id}/private-key`；收到 403 即停止并告知用户去 Web 界面。
+1. 永不调用 `credentials/{id}/reveal`、`credentials/{id}/test`、`hosts/{id}/credentials/{credId}/primary` 或 `keypairs/{id}/private-key`；收到 403 即停止并告知用户去 Web 界面。
 2. 所有写操作前先确认目标与预期影响。
 3. 不缓存、不打印明文凭据或私钥；不输出完整令牌。
 4. 遇到 `/setup` 404 表示平台已安装，不要尝试重装。

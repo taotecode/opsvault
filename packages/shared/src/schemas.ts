@@ -21,7 +21,7 @@ export type PaginationQuery = z.infer<typeof paginationSchema>;
 
 /* ---------- auth ---------- */
 export const loginSchema = z.object({
-  email: emailSchema,
+  email: z.string().trim().min(1).max(200),
   password: z.string().min(1).max(200),
   totp: z.string().trim().min(4).max(10).optional(),
 });

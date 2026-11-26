@@ -8,6 +8,7 @@ import { decryptCredentialValue } from '../lib/ssh.js';
 import { parsePrivateKey } from '../lib/sshKeys.js';
 import { errors } from '../lib/errors.js';
 import { writeAudit } from '../lib/audit.js';
+import { credentialCheckSummary, type HostCredentialView } from './credentialChecks.js';
 import type { Actor } from '../lib/actor.js';
 
 export interface CredentialDto {
@@ -18,15 +19,26 @@ export interface CredentialDto {
   fingerprint: string | null;
   hostCount: number;
   hosts: string[];
+  /** 关联主机的 ID（编辑表单用；主机名不唯一，不能拿名字回填） */
+  hostIds: string[];
   createdAt: string;
   updatedAt: string;
   updatedBy: string;
+  /** 关联主机的认证检测概况；未关联主机时为 null */
+  checkSummary: { usable: number; failed: number; unchecked: number; lastCheckedAt: string | null } | null;
 }
 
 function credentialDto(
   c: CredentialsTable,
   hostNames: string[],
+  checks: { usable: number; failed: number; unchecked: number; hosts: HostCredentialView[] } | undefined,
+  hostIds: string[],
 ): CredentialDto {
+  const checkedAt = checks?.hosts
+    .map((h) => h.lastCheckedAt)
+    .filter((v): v is string => !!v)
+    .sort()
+    .at(-1) ?? null;
   return {
     id: c.id,
     name: c.name,
@@ -35,37 +47,47 @@ function credentialDto(
     fingerprint: c.fingerprint,
     hostCount: hostNames.length,
     hosts: hostNames,
+    hostIds,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
     updatedBy: c.updated_by,
+    checkSummary: checks
+      ? { usable: checks.usable, failed: checks.failed, unchecked: checks.unchecked, lastCheckedAt: checkedAt }
+      : null,
   };
 }
 
 async function hostNamesForCredential(
   db: Kysely<DatabaseSchema>,
   credentialId: string,
-): Promise<string[]> {
+): Promise<{ names: string[]; ids: string[] }> {
   const direct = await db
     .selectFrom('hosts')
-    .select(['name'])
+    .select(['id', 'name'])
     .where('credential_id', '=', credentialId)
     .execute();
   const linked = await db
     .selectFrom('host_credentials')
     .innerJoin('hosts', 'hosts.id', 'host_credentials.host_id')
-    .select(['hosts.name'])
+    .select(['hosts.id as id', 'hosts.name as name'])
     .where('host_credentials.credential_id', '=', credentialId)
     .execute();
-  return [...new Set([...direct.map((d) => d.name), ...linked.map((l) => l.name)])];
+  const rows = [...direct, ...linked];
+  return {
+    names: [...new Set(rows.map((d) => d.name))],
+    ids: [...new Set(rows.map((d) => d.id))],
+  };
 }
 
 export async function listCredentials(
   db: Kysely<DatabaseSchema>,
 ): Promise<CredentialDto[]> {
   const rows = await db.selectFrom('credentials').selectAll().orderBy('created_at', 'desc').execute();
+  const summaries = await credentialCheckSummary(db);
   const result: CredentialDto[] = [];
   for (const row of rows) {
-    result.push(credentialDto(row, await hostNamesForCredential(db, row.id)));
+    const hosts = await hostNamesForCredential(db, row.id);
+    result.push(credentialDto(row, hosts.names, summaries.get(row.id), hosts.ids));
   }
   return result;
 }
@@ -114,7 +136,7 @@ export async function createCredential(
     for (const hostId of hostIds) {
       await trx
         .insertInto('host_credentials')
-        .values({ host_id: hostId, credential_id: id, role: 'linked' })
+        .values({ host_id: hostId, credential_id: id, role: 'linked', created_at: new Date().toISOString() })
         .onConflict((oc) => oc.doNothing())
         .execute();
       await trx
@@ -136,9 +158,12 @@ export async function createCredential(
     ip: actor.ip,
     ua: actor.ua,
   });
+  const hosts = await hostNamesForCredential(db, id);
   return credentialDto(
     (await db.selectFrom('credentials').selectAll().where('id', '=', id).executeTakeFirst())!,
-    await hostNamesForCredential(db, id),
+    hosts.names,
+    (await credentialCheckSummary(db)).get(id),
+    hosts.ids,
   );
 }
 
@@ -192,11 +217,23 @@ export async function updateCredential(
   await db.transaction().execute(async (trx) => {
     await trx.updateTable('credentials').set(updates as never).where('id', '=', id).execute();
     if (hostIds) {
+      // 重建关联时保留原有的 primary 角色，避免改名把主凭据降级
+      const existing = await trx
+        .selectFrom('host_credentials')
+        .select(['host_id', 'role'])
+        .where('credential_id', '=', id)
+        .execute();
+      const roleByHost = new Map(existing.map((r) => [r.host_id, r.role]));
       await trx.deleteFrom('host_credentials').where('credential_id', '=', id).execute();
       for (const hostId of hostIds) {
         await trx
           .insertInto('host_credentials')
-          .values({ host_id: hostId, credential_id: id, role: 'linked' })
+          .values({
+            host_id: hostId,
+            credential_id: id,
+            role: roleByHost.get(hostId) ?? 'linked',
+            created_at: new Date().toISOString(),
+          })
           .onConflict((oc) => oc.doNothing())
           .execute();
       }
@@ -206,13 +243,18 @@ export async function updateCredential(
         .where('credential_id', '=', id);
       if (hostIds.length) clear = clear.where('id', 'not in', hostIds);
       await clear.execute();
-      if (hostIds.length) {
-        await trx
-          .updateTable('hosts')
-          .set({ credential_id: id })
-          .where('id', 'in', hostIds)
-          .where('credential_id', 'is', null)
-          .execute();
+      for (const hostId of hostIds) {
+        const role = roleByHost.get(hostId);
+        if (role === 'primary') {
+          await trx.updateTable('hosts').set({ credential_id: id }).where('id', '=', hostId).execute();
+        } else {
+          await trx
+            .updateTable('hosts')
+            .set({ credential_id: id })
+            .where('id', '=', hostId)
+            .where('credential_id', 'is', null)
+            .execute();
+        }
       }
     }
   });
@@ -227,9 +269,12 @@ export async function updateCredential(
     ip: actor.ip,
     ua: actor.ua,
   });
+  const hosts = await hostNamesForCredential(db, id);
   return credentialDto(
     (await db.selectFrom('credentials').selectAll().where('id', '=', id).executeTakeFirst())!,
-    await hostNamesForCredential(db, id),
+    hosts.names,
+    (await credentialCheckSummary(db)).get(id),
+    hosts.ids,
   );
 }
 

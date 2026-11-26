@@ -41,6 +41,21 @@ export async function findUserByEmail(
     .executeTakeFirst();
 }
 
+/** 登录标识可以是邮箱，也可以是用户名（大小写不敏感）。 */
+export async function findUserByAccount(
+  db: Kysely<DatabaseSchema>,
+  account: string,
+): Promise<UsersTable | undefined> {
+  const value = account.trim();
+  if (!value) return undefined;
+  if (value.includes('@')) return findUserByEmail(db, value);
+  return db
+    .selectFrom('users')
+    .selectAll()
+    .where('username', '=', value)
+    .executeTakeFirst();
+}
+
 export async function findUserById(
   db: Kysely<DatabaseSchema>,
   id: string,

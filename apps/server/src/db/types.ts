@@ -82,6 +82,10 @@ export interface HostCredentialsTable {
   host_id: string;
   credential_id: string;
   role: string;
+  created_at: string;
+  last_check_ok: number | null;
+  last_check_error: string | null;
+  last_checked_at: string | null;
 }
 
 export interface ProbeSnapshotsTable {

@@ -115,6 +115,14 @@ describe('api integration', () => {
     const me = await app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: { cookie: cookies.cookie } });
     expect(me.statusCode).toBe(200);
     expect(me.json().data.user.email).toBe(ADMIN_EMAIL);
+
+    const byUsername = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: 'admin', password: ADMIN_PASSWORD },
+    });
+    expect(byUsername.statusCode).toBe(200);
+    expect(byUsername.json().data.user.email).toBe(ADMIN_EMAIL);
   });
 
   it('requires CSRF for cookie-authenticated writes', async () => {
@@ -249,6 +257,47 @@ describe('api integration', () => {
     const audit = await app.inject({ method: 'GET', url: '/api/v1/audit?category=cred&limit=10', headers: { cookie: cookies.cookie } });
     expect(audit.statusCode).toBe(200);
     expect(audit.json().data.some((a: { action: string }) => a.action === '查看凭据')).toBe(true);
+  });
+
+  it('lists per-host credentials and 404s on unknown targets', async () => {
+    const links = await app.inject({
+      method: 'GET',
+      url: `/api/v1/hosts/${hostId}/credentials`,
+      headers: { cookie: cookies.cookie },
+    });
+    expect(links.statusCode).toBe(200);
+    const body = links.json().data as Array<{ id: string; role: string; lastCheckOk: boolean | null }>;
+    expect(body.some((l) => l.id === credentialId)).toBe(true);
+    expect(body.every((l) => l.lastCheckOk === null)).toBe(true);
+
+    const missingHost = await app.inject({
+      method: 'POST',
+      url: `/api/v1/hosts/missing-host/credentials/${credentialId}/primary`,
+      headers: authHeaders(cookies, { 'content-type': 'application/json' }),
+      payload: {},
+    });
+    expect(missingHost.statusCode).toBe(404);
+
+    const missingCred = await app.inject({
+      method: 'POST',
+      url: `/api/v1/hosts/${hostId}/credentials/missing-credential/primary`,
+      headers: authHeaders(cookies, { 'content-type': 'application/json' }),
+      payload: {},
+    });
+    expect(missingCred.statusCode).toBe(404);
+
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/api/v1/hosts/${hostId}/credentials/${credentialId}/primary`,
+      headers: authHeaders(cookies, { 'content-type': 'application/json' }),
+      payload: {},
+    });
+    expect(ok.statusCode).toBe(200);
+
+    // 凭据列表应带 hostIds，供编辑表单精确回填
+    const list = await app.inject({ method: 'GET', url: '/api/v1/credentials', headers: { cookie: cookies.cookie } });
+    const item = list.json().data.find((c: { id: string }) => c.id === credentialId);
+    expect(item.hostIds).toContain(hostId);
   });
 
   it('generates Ed25519/RSA keys, exposes private key once, and builds quick-connect commands', async () => {

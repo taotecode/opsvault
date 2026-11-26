@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { getHostRow } from '../services/hosts.js';
-import { openSsh, persistHostFingerprint, resolveHostAuth } from '../lib/ssh.js';
+import { decryptKeypairPrivate, persistHostFingerprint } from '../lib/ssh.js';
+import { collectAuthCandidates, openWithFallback } from '../lib/authCandidates.js';
 import { writeAudit } from '../lib/audit.js';
 import { actorFromRequest } from '../lib/actor.js';
 import { denyAgent, getAuth, requireRole } from '../lib/permissions.js';
@@ -20,10 +21,26 @@ export async function terminalRoutes(app: FastifyInstance): Promise<void> {
       denyAgent(req);
       requireRole(req, ['admin', 'operator']);
       const { id } = req.params as { id: string };
+      const url = new URL(req.raw.url ?? '/', 'http://localhost');
+      const credentialId = url.searchParams.get('credentialId') ?? undefined;
+      const keypairId = url.searchParams.get('keypairId') ?? undefined;
       const host = await getHostRow(app.db, id);
-      const sshAuth = await resolveHostAuth(app.db, app.config, host);
-      const opened = await openSsh(host, sshAuth, host.host_key_fp);
-      await persistHostFingerprint(app.db, host.id, host.host_key_fp, opened.fingerprint);
+      const candidates = await collectAuthCandidates(app.db, app.config, host, credentialId);
+      if (keypairId) {
+        const kp = await app.db.selectFrom('keypairs').selectAll().where('id', '=', keypairId).executeTakeFirst();
+        if (kp?.has_private) {
+          candidates.unshift({
+            ref: `keypair:${kp.id}`,
+            kind: 'keypair',
+            label: kp.name,
+            role: 'explicit',
+            auth: { username: host.ssh_user, privateKey: decryptKeypairPrivate(kp, app.config) },
+          });
+        }
+      }
+      const opened = await openWithFallback(app.db, host, candidates, host.host_key_fp, async (_current, observed) => {
+        await persistHostFingerprint(app.db, host.id, null, observed);
+      });
       await writeAudit(app.db, {
         actorId: auth.user.id,
         actorLabel: auth.actorLabel,
@@ -31,7 +48,7 @@ export async function terminalRoutes(app: FastifyInstance): Promise<void> {
         action: '打开终端',
         category: 'asset',
         targetId: host.id,
-        detail: { host: host.name },
+        detail: { host: host.name, authUsed: opened.candidate.label },
         ip: actorFromRequest(req).ip,
         ua: actorFromRequest(req).ua,
       });

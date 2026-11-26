@@ -15,7 +15,7 @@ import {
   verifyTotpCode,
 } from '../lib/crypto.js';
 import { errors } from '../lib/errors.js';
-import { findUserByEmail, findUserById, userDto, type UserDto } from './users.js';
+import { findUserByAccount, findUserById, userDto, type UserDto } from './users.js';
 import { writeAudit } from '../lib/audit.js';
 import type { Actor } from '../lib/actor.js';
 import type { RequestAuth } from '../lib/permissions.js';
@@ -92,7 +92,7 @@ export async function login(
     void sendWebhook(db, 'auth.locked', { email: input.email, ip: meta.ip }).catch(() => undefined);
     throw errors.rateLimited();
   }
-  const user = await findUserByEmail(db, input.email);
+  const user = await findUserByAccount(db, input.email);
   const fail = async (reason: string): Promise<never> => {
     if (sec.loginLockout) recordLoginFailure(lockKey);
     await writeAudit(db, {

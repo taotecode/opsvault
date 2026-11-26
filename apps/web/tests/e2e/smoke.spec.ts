@@ -64,8 +64,8 @@ test('setup, login, asset management and terminal smoke', async ({ page, request
   const shotDirPre = path.resolve(process.cwd(), '../../docs/screenshots');
   fs.mkdirSync(shotDirPre, { recursive: true });
   await page.screenshot({ path: path.join(shotDirPre, 'login-dark.png'), fullPage: false });
-  await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
-  await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
+  await page.getByLabel('邮箱或用户名').fill(ADMIN_EMAIL);
+  await page.getByLabel('密码', { exact: true }).fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: /登录/ }).click();
   await expect(page.getByRole('heading', { name: '仪表盘' })).toBeVisible({ timeout: 15_000 });
 
@@ -141,6 +141,9 @@ test('setup, login, asset management and terminal smoke', async ({ page, request
   await expect(page.getByRole('heading', { name: '设置' })).toBeVisible({ timeout: 15_000 });
   await page.screenshot({ path: path.join(shotDir, 'settings-dark.png'), fullPage: false });
   await page.goto('/terminal');
+  await expect(page.getByRole('heading', { name: 'Web 终端' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.xterm, .term').first()).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(shotDir, 'terminal-dark.png'), fullPage: false });
   await page.goto('/');
   await page.getByTitle('切换主题').click();
@@ -162,4 +165,81 @@ test('installer entry is permanently closed', async ({ request }) => {
   expect(res.status()).toBe(404);
   const api = await request.post('/api/v1/setup/verify-token', { headers: { 'x-setup-token': 'x' }, data: {} });
   expect(api.status()).toBe(404);
+});
+
+test('multi-credential: edit, status column, per-host status, manual picker', async ({ page }) => {
+  // 复用上一个用例安装好的实例：先登录
+  await page.goto('/login');
+  await page.getByLabel('邮箱或用户名').fill(ADMIN_EMAIL);
+  await page.getByLabel('密码', { exact: true }).fill(ADMIN_PASSWORD);
+  await page.getByRole('button', { name: /登录/ }).click();
+  await expect(page.getByRole('heading', { name: '仪表盘' })).toBeVisible({ timeout: 15_000 });
+
+  const token = await csrf(page.context());
+  const headers = { 'x-csrf-token': token };
+
+  const hostRes = await page.request.post('/api/v1/hosts', {
+    headers,
+    data: { name: 'multi-cred-host', address: '203.0.113.120', port: 22, sshUser: 'root', env: 'dev' },
+  });
+  expect(hostRes.ok()).toBeTruthy();
+  const host = ((await hostRes.json()) as { data: { id: string } }).data;
+
+  const primary = await page.request.post('/api/v1/credentials', {
+    headers,
+    data: { name: 'mc-primary', type: 'password', value: 'PrimaryPass1!', hostIds: [host.id] },
+  });
+  expect(primary.ok()).toBeTruthy();
+  const primaryId = ((await primary.json()) as { data: { id: string } }).data.id;
+  const secondary = await page.request.post('/api/v1/credentials', {
+    headers,
+    data: { name: 'mc-secondary', type: 'password', value: 'SecondaryPass1!', hostIds: [host.id] },
+  });
+  expect(secondary.ok()).toBeTruthy();
+  const secondaryId = ((await secondary.json()) as { data: { id: string } }).data.id;
+
+  // 设主凭据：secondary 成为 primary，primary 降级
+  const setPrimary = await page.request.post(`/api/v1/hosts/${host.id}/credentials/${secondaryId}/primary`, {
+    headers,
+    data: {},
+  });
+  expect(setPrimary.ok()).toBeTruthy();
+  const linksRes = await page.request.get(`/api/v1/hosts/${host.id}/credentials`);
+  const links = ((await linksRes.json()) as {
+    data: Array<{ id: string; role: string; lastCheckOk: boolean | null }>;
+  }).data;
+  expect(links.find((l) => l.id === secondaryId)?.role).toBe('primary');
+  expect(links.find((l) => l.id === primaryId)?.role).toBe('linked');
+  expect(links.every((l) => l.lastCheckOk === null)).toBeTruthy();
+
+  // 凭据页：检测按钮对不可达地址会记录失败状态（203.0.113.x 为文档占用地址段）
+  await page.goto('/credentials');
+  await expect(page.getByText('mc-primary').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('columnheader', { name: '可用状态' })).toBeVisible();
+  await expect(page.getByText('未检测 1 台').first()).toBeVisible();
+
+  // 编辑弹窗：改名并保存
+  await page.getByRole('row', { name: /mc-primary/ }).getByLabel('编辑凭据').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByText('编辑凭据 · mc-primary')).toBeVisible();
+  const nameInput = page.getByRole('dialog').locator('input').first();
+  await nameInput.fill('mc-primary-renamed');
+  await page.getByRole('button', { name: '保存更改' }).click();
+  await expect(page.getByText('mc-primary-renamed').first()).toBeVisible({ timeout: 10_000 });
+
+  // 主机抽屉：多凭据状态与设为主凭据
+  await page.goto('/hosts');
+  await page.getByText('multi-cred-host').first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('tab', { name: '凭据与密钥' }).click();
+  await expect(page.getByText('mc-secondary').first()).toBeVisible();
+  await expect(page.getByText('主凭据').first()).toBeVisible();
+  await expect(page.getByText('未检测').first()).toBeVisible();
+  await page.getByRole('button', { name: '设为主凭据' }).click();
+  await expect(page.getByText('已设为主凭据').first()).toBeVisible({ timeout: 10_000 });
+
+  // 抽屉上的手动选择器应当出现在顶部操作区
+  await expect(page.getByText('自动选择（主凭据优先）').first()).toBeVisible();
+
+  await page.screenshot({ path: path.resolve(process.cwd(), '../../docs/screenshots/host-drawer-credentials.png'), fullPage: false });
 });

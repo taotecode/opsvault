@@ -16,8 +16,10 @@ import {
   projectHosts,
 } from '../services/hosts.js';
 import { probeHost, probeMany } from '../services/probe.js';
+import { hostCredentials, setPrimaryCredential } from '../services/credentialChecks.js';
 import { actorFromRequest } from '../lib/actor.js';
-import { getAuth, scopeCheck } from '../lib/permissions.js';
+import { getAuth, scopeCheck, denyAgent } from '../lib/permissions.js';
+import { writeAudit } from '../lib/audit.js';
 import { parseBody, parseQuery } from '../lib/validate.js';
 
 export async function hostRoutes(app: FastifyInstance): Promise<void> {
@@ -64,8 +66,58 @@ export async function hostRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/v1/hosts/:id/probe', async (req) => {
     scopeCheck('hosts:write')(req);
     const { id } = req.params as { id: string };
-    const result = await probeHost(app.db, app.config, id, actorFromRequest(req));
+    const body = (req.body ?? {}) as { credentialId?: string; keypairId?: string };
+    const result = await probeHost(app.db, app.config, id, actorFromRequest(req), {
+      credentialId: typeof body.credentialId === 'string' ? body.credentialId : undefined,
+      keypairId: typeof body.keypairId === 'string' ? body.keypairId : undefined,
+    });
     return { data: { host: result.host, partial: result.partial } };
+  });
+
+  app.get('/api/v1/hosts/:id/credentials', async (req) => {
+    scopeCheck('hosts:read')(req);
+    const { id } = req.params as { id: string };
+    const links = (await hostCredentials(app.db)).get(id) ?? [];
+    const credentials = links.length
+      ? await app.db
+          .selectFrom('credentials')
+          .select(['id', 'name', 'type', 'strength'])
+          .where('id', 'in', links.map((l) => l.id))
+          .execute()
+      : [];
+    const byId = new Map(credentials.map((c) => [c.id, c]));
+    return {
+      data: links
+        .filter((l) => byId.has(l.id))
+        .map((l) => ({
+          id: l.id,
+          name: byId.get(l.id)!.name,
+          type: byId.get(l.id)!.type,
+          strength: byId.get(l.id)!.strength,
+          role: l.role,
+          lastCheckOk: l.ok,
+          lastCheckError: l.error,
+          lastCheckedAt: l.at,
+        })),
+    };
+  });
+
+  app.post('/api/v1/hosts/:id/credentials/:credentialId/primary', async (req) => {
+    scopeCheck('hosts:write')(req);
+    denyAgent(req);
+    const { id, credentialId } = req.params as { id: string; credentialId: string };
+    await setPrimaryCredential(app.db, id, credentialId);
+    await writeAudit(app.db, {
+      ...actorFromRequest(req),
+      actorId: req.auth?.user.id ?? null,
+      actorLabel: req.auth?.actorLabel ?? 'system',
+      actorKind: req.auth?.actorKind ?? 'system',
+      action: '设置主凭据',
+      category: 'cred',
+      targetId: id,
+      detail: { credentialId },
+    });
+    return { data: { ok: true } };
   });
 
   app.post('/api/v1/hosts/batch-probe', async (req) => {
