@@ -458,6 +458,40 @@ describe('api integration', () => {
       headers: { authorization: `Bearer ${agentToken}` },
     });
     expect(totpDisable.statusCode).toBe(403);
+
+    // 即便拿到 hosts:write，Agent 也不能借手动凭据/检测/设主凭据把保险库密码发往任意主机
+    const writeToken = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tokens',
+      headers: authHeaders(cookies, { 'content-type': 'application/json' }),
+      payload: { name: 'agent-write', kind: 'agent', scopes: ['hosts:read', 'hosts:write'] },
+    });
+    expect(writeToken.statusCode).toBe(200);
+    const writeTokenValue = writeToken.json().data.token as string;
+
+    const probeOverride = await app.inject({
+      method: 'POST',
+      url: `/api/v1/hosts/${hostId}/probe`,
+      headers: { authorization: `Bearer ${writeTokenValue}`, 'content-type': 'application/json' },
+      payload: { credentialId },
+    });
+    expect(probeOverride.statusCode).toBe(403);
+
+    const agentTest = await app.inject({
+      method: 'POST',
+      url: `/api/v1/credentials/${credentialId}/test`,
+      headers: { authorization: `Bearer ${writeTokenValue}`, 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(agentTest.statusCode).toBe(403);
+
+    const agentPrimary = await app.inject({
+      method: 'POST',
+      url: `/api/v1/hosts/${hostId}/credentials/${credentialId}/primary`,
+      headers: { authorization: `Bearer ${writeTokenValue}`, 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(agentPrimary.statusCode).toBe(403);
   });
 
   it('blocks user tokens from admin APIs and protects the last admin', async () => {

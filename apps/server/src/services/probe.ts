@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import { ulid } from 'ulid';
 import type { AppConfig } from '../config.js';
 import type { DatabaseSchema, HostsTable } from '../db/types.js';
-import { decryptKeypairPrivate, execRemote, openSsh, persistHostFingerprint } from '../lib/ssh.js';
+import { execRemote, openSsh, persistHostFingerprint } from '../lib/ssh.js';
 import { collectAuthCandidates, openWithFallback } from '../lib/authCandidates.js';
 import { PROBE_SCRIPT, parseProbe } from '../lib/probeParser.js';
 import { errors } from '../lib/errors.js';
@@ -48,7 +48,7 @@ export async function probeHost(
   config: AppConfig,
   hostId: string,
   actor: Actor,
-  options: { credentialId?: string; keypairId?: string } = {},
+  options: { credentialId?: string } = {},
 ): Promise<ProbeResult> {
   const host = await getHostRow(db, hostId);
   const now = new Date().toISOString();
@@ -56,18 +56,6 @@ export async function probeHost(
   let client: Awaited<ReturnType<typeof openSsh>>['client'] | null = null;
   try {
     const candidates = await collectAuthCandidates(db, config, host, options.credentialId);
-    if (options.keypairId) {
-      const kp = await db.selectFrom('keypairs').selectAll().where('id', '=', options.keypairId).executeTakeFirst();
-      if (kp?.has_private) {
-        candidates.unshift({
-          ref: `keypair:${kp.id}`,
-          kind: 'keypair',
-          label: kp.name,
-          role: 'explicit',
-          auth: { username: host.ssh_user, privateKey: decryptKeypairPrivate(kp, config) },
-        });
-      }
-    }
     const opened = await openWithFallback(db, host, candidates, host.host_key_fp, async (_current, observed) => {
       await persistHostFingerprint(db, host.id, null, observed);
     });

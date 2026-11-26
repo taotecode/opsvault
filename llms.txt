@@ -12,7 +12,7 @@
 ## 常用端点
 - `GET /hosts?env=prod&status=online&fields=id,name,status,expiresAt` — 资产列表（cursor 分页）
 - `GET /hosts/{id}` — 详情（自动探测字段 + 手动字段）
-- `POST /hosts/{id}/probe` — 触发 SSH 探测（hosts:write）；可选 `credentialId` / `keypairId` 指定认证，缺省按「密钥对 → 主凭据 → 其他关联凭据」自动回退
+- `POST /hosts/{id}/probe` — 触发 SSH 探测（hosts:write）；登录用户可选 `credentialId` 手动指定认证（必须已关联该主机），缺省按「密钥对 → 主凭据 → 其他关联凭据」自动回退；Agent 传 `credentialId` 一律 403
 - `GET /hosts/{id}/credentials` — 该主机关联的每条凭据及其最近检测状态（usable / failed / unchecked）
 - `GET /credentials` — 凭据元数据（永不含明文），含 `checkSummary` 各主机可用性概况
 - `GET /keypairs` — 密钥列表（含部署/验证状态，不含私钥）

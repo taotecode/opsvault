@@ -276,6 +276,14 @@ const migrations: Record<string, Migration> = {
         await db.schema.alterTable('host_credentials').addColumn('last_checked_at', 'text').execute();
       }
 
+      // 旧库新增列后，既有关联行的 created_at 会落在默认值上；回填为凭据自身的创建时间，
+      // 保证「按关联创建时间排序」在 SQLite / PostgreSQL 下都有确定含义。
+      await db
+        .updateTable('host_credentials')
+        .set({ created_at: sql<string>`(select "created_at" from "credentials" where "credentials"."id" = "host_credentials"."credential_id")` })
+        .where('created_at', '=', '1970-01-01T00:00:00.000Z')
+        .execute();
+
       // 把旧的单一 credential_id 关联补进关联表（幂等）
       const hosts = await db
         .selectFrom('hosts')

@@ -275,16 +275,25 @@ export async function patchHost(
   await db.transaction().execute(async (trx) => {
     await trx.updateTable('hosts').set(updates as never).where('id', '=', id).execute();
     if (patch.credentialId !== undefined) {
-      await trx
-        .deleteFrom('host_credentials')
-        .where('host_id', '=', id)
-        .where('role', '=', 'primary')
-        .execute();
+      // 先降级其他关联，再把目标行置为 primary（已存在的 linked 行也要升级，不能 doNothing）
       if (patch.credentialId) {
+        await trx
+          .updateTable('host_credentials')
+          .set({ role: 'linked' })
+          .where('host_id', '=', id)
+          .where('credential_id', '!=', patch.credentialId)
+          .execute();
         await trx
           .insertInto('host_credentials')
           .values({ host_id: id, credential_id: patch.credentialId, role: 'primary', created_at: new Date().toISOString() })
-          .onConflict((oc) => oc.doNothing())
+          .onConflict((oc) => oc.columns(['host_id', 'credential_id']).doUpdateSet({ role: 'primary' }))
+          .execute();
+      } else {
+        await trx
+          .updateTable('host_credentials')
+          .set({ role: 'linked' })
+          .where('host_id', '=', id)
+          .where('role', '=', 'primary')
           .execute();
       }
     }

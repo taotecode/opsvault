@@ -31,6 +31,11 @@ export interface AuthAttemptResult {
   checks: CandidateCheck[];
 }
 
+// 单条候选构造失败属于可恢复情形（例如带口令私钥），只记一行告警，绝不记录明文。
+function warn(message: string, fields: Record<string, unknown>): void {
+  process.stderr.write(`${JSON.stringify({ level: 'warn', message, ...fields })}\n`);
+}
+
 function describeError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   return msg.replace(/\s+/g, ' ').slice(0, 240);
@@ -53,35 +58,57 @@ export async function collectAuthCandidates(
   const username = host.ssh_user;
 
   const pushKeypair = async (id: string, role: AuthCandidate['role']): Promise<void> => {
-    const kp = await db.selectFrom('keypairs').selectAll().where('id', '=', id).executeTakeFirst();
-    if (!kp || !kp.has_private) return;
-    out.push({
-      ref: `keypair:${kp.id}`,
-      kind: 'keypair',
-      label: kp.name,
-      role,
-      auth: { username, privateKey: decryptKeypairPrivate(kp, config) },
-    });
+    try {
+      const kp = await db.selectFrom('keypairs').selectAll().where('id', '=', id).executeTakeFirst();
+      if (!kp || !kp.has_private) return;
+      out.push({
+        ref: `keypair:${kp.id}`,
+        kind: 'keypair',
+        label: kp.name,
+        role,
+        auth: { username, privateKey: decryptKeypairPrivate(kp, config) },
+      });
+    } catch (e) {
+      // 单条候选无法构造（如带口令私钥）不应阻断整条回退链
+      warn('keypair candidate failed to build', { id, reason: e instanceof Error ? e.message : String(e) });
+    }
   };
 
   const pushCredential = async (row: { id: string; name: string; type: string }, role: AuthCandidate['role']): Promise<void> => {
     if (out.some((c) => c.ref === `credential:${row.id}`)) return;
-    const full = await db.selectFrom('credentials').selectAll().where('id', '=', row.id).executeTakeFirst();
-    if (!full) return;
-    const value = decryptCredentialValue(full, config);
-    if (full.type === 'password') {
-      out.push({ ref: `credential:${full.id}`, kind: 'password', label: full.name, role, auth: { username, password: value } });
-      return;
-    }
-    if (full.type === 'ssh_key') {
-      const parsed = parsePrivateKey(value);
-      out.push({ ref: `credential:${full.id}`, kind: 'ssh_key', label: full.name, role, auth: { username, privateKey: parsed.privateText } });
+    try {
+      const full = await db.selectFrom('credentials').selectAll().where('id', '=', row.id).executeTakeFirst();
+      if (!full) return;
+      const value = decryptCredentialValue(full, config);
+      if (full.type === 'password') {
+        out.push({ ref: `credential:${full.id}`, kind: 'password', label: full.name, role, auth: { username, password: value } });
+        return;
+      }
+      if (full.type === 'ssh_key') {
+        const parsed = parsePrivateKey(value);
+        out.push({ ref: `credential:${full.id}`, kind: 'ssh_key', label: full.name, role, auth: { username, privateKey: parsed.privateText } });
+      }
+    } catch (e) {
+      const message = describeError(e);
+      warn('credential candidate failed to build', { credential: row.name, reason: message });
+      // 构造失败的凭据也要落到检测状态里，让界面能显示“该凭据本身有问题”
+      await recordCredentialCheck(db, host.id, { ref: `credential:${row.id}` }, false, message).catch(() => undefined);
     }
   };
 
   if (explicitCredentialId) {
     const row = await db.selectFrom('credentials').select(['id', 'name', 'type']).where('id', '=', explicitCredentialId).executeTakeFirst();
     if (!row) throw errors.notFound('凭据');
+    // 手动选择只允许该确已关联此主机的凭据，避免把保险库里的任意密码发往任意地址
+    const linked = await db
+      .selectFrom('host_credentials')
+      .select('credential_id')
+      .where('host_id', '=', host.id)
+      .where('credential_id', '=', explicitCredentialId)
+      .executeTakeFirst();
+    if (!linked && host.credential_id !== explicitCredentialId) {
+      throw errors.forbidden('该凭据未关联此主机');
+    }
     await pushCredential(row, 'explicit');
     // 手动选择：只尝试该凭据（也不回退到主机密钥对），便于定位失效密码
     return out;
@@ -96,6 +123,7 @@ export async function collectAuthCandidates(
     .where('host_credentials.host_id', '=', host.id)
     .orderBy(sql<number>`case when "host_credentials"."role" = 'primary' then 0 else 1 end`)
     .orderBy('host_credentials.created_at', 'asc')
+    .orderBy('credentials.id', 'asc')
     .execute();
   for (const link of links) {
     await pushCredential(link, link.role === 'primary' ? 'primary' : 'linked');
@@ -114,7 +142,7 @@ export async function collectAuthCandidates(
 export async function recordCredentialCheck(
   db: Kysely<DatabaseSchema>,
   hostId: string,
-  candidate: AuthCandidate,
+  candidate: Pick<AuthCandidate, 'ref'>,
   ok: boolean,
   error?: string,
 ): Promise<void> {

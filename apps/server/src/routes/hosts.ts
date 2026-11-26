@@ -66,10 +66,11 @@ export async function hostRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/v1/hosts/:id/probe', async (req) => {
     scopeCheck('hosts:write')(req);
     const { id } = req.params as { id: string };
-    const body = (req.body ?? {}) as { credentialId?: string; keypairId?: string };
+    const body = (req.body ?? {}) as { credentialId?: string };
+    // 手动指定凭据只对登录用户开放；Agent 若可指定凭据，即可把保险库里的密码发往任意地址
+    if (typeof body.credentialId === 'string') denyAgent(req);
     const result = await probeHost(app.db, app.config, id, actorFromRequest(req), {
       credentialId: typeof body.credentialId === 'string' ? body.credentialId : undefined,
-      keypairId: typeof body.keypairId === 'string' ? body.keypairId : undefined,
     });
     return { data: { host: result.host, partial: result.partial } };
   });

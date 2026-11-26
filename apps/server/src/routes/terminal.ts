@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { getHostRow } from '../services/hosts.js';
-import { decryptKeypairPrivate, persistHostFingerprint } from '../lib/ssh.js';
+import { persistHostFingerprint } from '../lib/ssh.js';
 import { collectAuthCandidates, openWithFallback } from '../lib/authCandidates.js';
 import { writeAudit } from '../lib/audit.js';
 import { actorFromRequest } from '../lib/actor.js';
@@ -23,21 +23,8 @@ export async function terminalRoutes(app: FastifyInstance): Promise<void> {
       const { id } = req.params as { id: string };
       const url = new URL(req.raw.url ?? '/', 'http://localhost');
       const credentialId = url.searchParams.get('credentialId') ?? undefined;
-      const keypairId = url.searchParams.get('keypairId') ?? undefined;
       const host = await getHostRow(app.db, id);
       const candidates = await collectAuthCandidates(app.db, app.config, host, credentialId);
-      if (keypairId) {
-        const kp = await app.db.selectFrom('keypairs').selectAll().where('id', '=', keypairId).executeTakeFirst();
-        if (kp?.has_private) {
-          candidates.unshift({
-            ref: `keypair:${kp.id}`,
-            kind: 'keypair',
-            label: kp.name,
-            role: 'explicit',
-            auth: { username: host.ssh_user, privateKey: decryptKeypairPrivate(kp, app.config) },
-          });
-        }
-      }
       const opened = await openWithFallback(app.db, host, candidates, host.host_key_fp, async (_current, observed) => {
         await persistHostFingerprint(app.db, host.id, null, observed);
       });

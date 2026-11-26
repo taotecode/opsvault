@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,14 +50,21 @@ export function CredentialEditDialog({
     defaultValues: { name: '', value: '', hostIds: [] },
   });
 
+  const initFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!credential) return;
+    if (!credential) {
+      initFor.current = null;
+      return;
+    }
+    // 只在打开一条新凭据时初始化表单；后台刷新换掉 credential 对象不应覆盖用户输入
+    if (initFor.current === credential.id) return;
     const known = credential.hostIds ?? [];
     const matched = known.length
       ? known
       : (hostsQuery.data ?? [])
           .filter((h) => credential.hosts.includes(h.name))
           .map((h) => h.id);
+    initFor.current = credential.id;
     form.reset({ name: credential.name, value: '', hostIds: matched });
     setRotate(false);
   }, [credential, hostsQuery.data, form]);

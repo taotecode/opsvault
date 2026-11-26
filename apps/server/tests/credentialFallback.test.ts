@@ -181,4 +181,98 @@ describe('credential fallback', () => {
     const hostRow = await db.selectFrom('hosts').select(['credential_id']).where('id', '=', host.id).executeTakeFirstOrThrow();
     expect(hostRow.credential_id).toBe(cred.id);
   });
+
+  it('rename preserves check status and link order; removing a host clears hosts.credential_id', async () => {
+    const host = await createHost(
+      db,
+      { name: 'rename-host', address: '203.0.113.23', port: 22, sshUser: 'root', env: 'dev' },
+      systemActor('test'),
+    );
+    const cred = await createCredential(
+      db,
+      config,
+      { name: 'rename-cred', type: 'password', value: 'RenamePass1!', hostIds: [host.id] },
+      systemActor('test'),
+    );
+    const createdAt = '2026-01-01T00:00:00.000Z';
+    await db
+      .updateTable('host_credentials')
+      .set({ role: 'primary', created_at: createdAt, last_check_ok: 0, last_check_error: '之前失败', last_checked_at: '2026-02-01T00:00:00.000Z' })
+      .where('host_id', '=', host.id)
+      .where('credential_id', '=', cred.id)
+      .execute();
+
+    await updateCredential(db, config, cred.id, { name: 'rename-cred-2', hostIds: [host.id] }, systemActor('test'));
+    const link = await db
+      .selectFrom('host_credentials')
+      .selectAll()
+      .where('host_id', '=', host.id)
+      .where('credential_id', '=', cred.id)
+      .executeTakeFirstOrThrow();
+    expect(link.role).toBe('primary');
+    expect(link.last_check_ok).toBe(0);
+    expect(link.last_check_error).toBe('之前失败');
+    expect(link.created_at).toBe(createdAt);
+
+    await updateCredential(db, config, cred.id, { hostIds: [] }, systemActor('test'));
+    expect(
+      (await db.selectFrom('host_credentials').select('host_id').where('credential_id', '=', cred.id).execute()).length,
+    ).toBe(0);
+    const after = await db.selectFrom('hosts').select('credential_id').where('id', '=', host.id).executeTakeFirstOrThrow();
+    expect(after.credential_id).toBeNull();
+  });
+
+  it('an unbuildable candidate does not break the fallback chain', async () => {
+    const host = await createHost(
+      db,
+      { name: 'unbuildable-host', address: '203.0.113.24', port: 22, sshUser: 'root', env: 'dev' },
+      systemActor('test'),
+    );
+    await createCredential(
+      db,
+      config,
+      { name: 'chain-good', type: 'password', value: 'ChainGood1!', hostIds: [host.id] },
+      systemActor('test'),
+    );
+    // 无效私钥内容：解析阶段就失败，不应阻断后续凭据
+    await createCredential(
+      db,
+      config,
+      { name: 'chain-broken-key', type: 'ssh_key', value: 'not-a-private-key', hostIds: [host.id] },
+      systemActor('test'),
+    );
+
+    const hostRow = await db.selectFrom('hosts').selectAll().where('id', '=', host.id).executeTakeFirstOrThrow();
+    sshState.failingPasswords = new Set();
+    sshState.attempts = [];
+    const candidates = await collectAuthCandidates(db, config, hostRow);
+    expect(candidates.map((c) => c.label)).toEqual(['chain-good']);
+    const opened = await openWithFallback(db, hostRow, candidates, null, async () => undefined);
+    expect(opened.candidate.label).toBe('chain-good');
+    expect(sshState.attempts).toEqual(['ChainGood1!']);
+  });
+
+  it('rejects an explicit credential that is not linked to the host', async () => {
+    const host = await createHost(
+      db,
+      { name: 'unlinked-host', address: '203.0.113.25', port: 22, sshUser: 'root', env: 'dev' },
+      systemActor('test'),
+    );
+    const otherHost = await createHost(
+      db,
+      { name: 'unlinked-other', address: '203.0.113.26', port: 22, sshUser: 'root', env: 'dev' },
+      systemActor('test'),
+    );
+    const cred = await createCredential(
+      db,
+      config,
+      { name: 'unlinked-cred', type: 'password', value: 'UnlinkedPass1!', hostIds: [otherHost.id] },
+      systemActor('test'),
+    );
+    const hostRow = await db.selectFrom('hosts').selectAll().where('id', '=', host.id).executeTakeFirstOrThrow();
+    await expect(collectAuthCandidates(db, config, hostRow, cred.id)).rejects.toMatchObject({
+      statusCode: 403,
+      hint: '该凭据未关联此主机',
+    });
+  });
 });

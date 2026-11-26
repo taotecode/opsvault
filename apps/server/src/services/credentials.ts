@@ -217,32 +217,37 @@ export async function updateCredential(
   await db.transaction().execute(async (trx) => {
     await trx.updateTable('credentials').set(updates as never).where('id', '=', id).execute();
     if (hostIds) {
-      // 重建关联时保留原有的 primary 角色，避免改名把主凭据降级
+      // 只做增量：保留已有关联行（含 role / 检测状态 / created_at），避免改名把状态清空、排序重置
       const existing = await trx
         .selectFrom('host_credentials')
         .select(['host_id', 'role'])
         .where('credential_id', '=', id)
         .execute();
       const roleByHost = new Map(existing.map((r) => [r.host_id, r.role]));
-      await trx.deleteFrom('host_credentials').where('credential_id', '=', id).execute();
+      const removed = existing.map((r) => r.host_id).filter((hostId) => !hostIds.includes(hostId));
+      if (removed.length) {
+        await trx
+          .deleteFrom('host_credentials')
+          .where('credential_id', '=', id)
+          .where('host_id', 'in', removed)
+          .execute();
+      }
       for (const hostId of hostIds) {
+        if (roleByHost.has(hostId)) continue;
         await trx
           .insertInto('host_credentials')
-          .values({
-            host_id: hostId,
-            credential_id: id,
-            role: roleByHost.get(hostId) ?? 'linked',
-            created_at: new Date().toISOString(),
-          })
+          .values({ host_id: hostId, credential_id: id, role: 'linked', created_at: new Date().toISOString() })
           .onConflict((oc) => oc.doNothing())
           .execute();
       }
-      let clear = trx
-        .updateTable('hosts')
-        .set({ credential_id: null })
-        .where('credential_id', '=', id);
-      if (hostIds.length) clear = clear.where('id', 'not in', hostIds);
-      await clear.execute();
+      if (removed.length) {
+        await trx
+          .updateTable('hosts')
+          .set({ credential_id: null })
+          .where('credential_id', '=', id)
+          .where('id', 'in', removed)
+          .execute();
+      }
       for (const hostId of hostIds) {
         const role = roleByHost.get(hostId);
         if (role === 'primary') {
